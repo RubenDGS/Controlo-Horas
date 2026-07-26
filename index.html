@@ -4,22 +4,29 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#0b5e75">
-  <title>Controlo de Horas PWA V7 Corrigido</title>
+  <title>Controlo Horas e Compensações</title>
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="icon" href="icon-192.png" type="image/png">
+  <link rel="apple-touch-icon" href="icon-192.png">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-<header>
-  <div>
-    <h1>Controlo de Horas PWA V7 Corrigido</h1>
-    <p>Lê a folha completa e identifica ajudas de custo e alojamento</p>
+<header class="appHeader">
+  <div class="brand">
+    <img src="logotipo.png" alt="Logótipo" class="brandLogo">
+    <div>
+      <h1>Controlo Horas e Compensações</h1>
+      <p>Gestão de horas, recebimentos, férias e compensações</p>
+    </div>
   </div>
-  <button id="backupBtn">Criar backup</button>
-<button id="installAppBtn" type="button" hidden>📲 Instalar aplicação</button></header>
+  <div class="headerActions">
+    <button id="backupBtn">Criar backup</button>
+    <button id="installAppBtn" type="button" hidden>📲 Instalar aplicação</button>
+  </div>
+</header>
 
 <nav>
-  <button class="tab active" data-tab="resumo">Resumo</button>
+  <button class="tab active" data-tab="resumo">Dashboard</button>
   <button class="tab" data-tab="folhas">Folhas</button>
   <button class="tab" data-tab="recebimentos">Recebimentos</button>
   <button class="tab" data-tab="compensacoes">Compensações</button>
@@ -62,7 +69,7 @@
 </section>
 
 <section id="recebimentos" class="panel">
-<p class="note"><strong>Cálculo automático de 2026:</strong> salário bruto e horas extra sujeitos a Segurança Social e IRS. Ajudas de custo e alojamento ficam separados e sem descontos.</p>
+<p class="note"><strong>Cálculo automático:</strong> salário bruto e horas extra sujeitos a Segurança Social e IRS. Situação considerada: não casado, sem dependentes, Continente. Ajudas de custo e alojamento ficam separados e sem descontos.</p>
 <div class="cards miniCards">
 <article><span>Bruto sujeito</span><strong id="grossAutoCard">0,00 €</strong></article>
 <article><span>Segurança Social</span><strong id="ssAutoCard">0,00 €</strong></article>
@@ -112,6 +119,7 @@
 <section id="definicoes" class="panel">
   <form id="settingsForm" class="formGrid settings">
     <label>Salário base bruto (€)<input name="salarioBase" type="number" step="0.01"></label>
+    <label>Segurança Social do trabalhador (%)<input name="taxaSS" type="number" min="0" max="100" step="0.01"></label>
     <label>Valor hora (€)<input name="valorHora" type="number" step="0.01"></label>
     <label>Ajuda de custo padrão/dia (€)<input name="ajudaDia" type="number" step="0.01"></label>
     <label>Alojamento/dia (€)<input name="alojDia" type="number" step="0.01"></label>

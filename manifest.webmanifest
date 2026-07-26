@@ -1,14 +1,14 @@
 {
-  "name": "Controlo de Horas e Recebimentos",
+  "name": "Controlo Horas e Compensações",
   "short_name": "Horas",
-  "description": "Gestão de folhas de horas, compensações, férias e recebimentos.",
+  "description": "Gestão de horas, recebimentos, férias e compensações.",
   "id": "./",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#ffffff",
-  "theme_color": "#0b5cab",
+  "background_color": "#f4f7f8",
+  "theme_color": "#0b5e75",
   "lang": "pt-PT",
   "icons": [
     {
