@@ -41,172 +41,153 @@ td:first-child,th:first-child{text-align:left}td input{width:78px;padding:6px;bo
 }
 
 
+/* Identidade final da aplicação */
 :root{
   --brand:#0b5e75;
   --brand-dark:#083f50;
-  --brand-soft:#e9f5f7;
+  --brand-light:#e8f4f7;
   --surface:#ffffff;
-  --bg:#f4f7f8;
-  --text:#17323b;
-  --muted:#627982;
-  --line:#dbe6e9;
-  --shadow:0 10px 28px rgba(8,63,80,.10);
+  --page:#f3f7f8;
+  --line:#d7e4e8;
+  --muted:#607780;
+  --shadow:0 8px 24px rgba(8,63,80,.10);
 }
 
-body{
-  background:var(--bg);
-  color:var(--text);
-}
+body{background:var(--page);color:#17343d}
 
 .appHeader{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:1.25rem;
-  padding:1rem 1.25rem;
   background:var(--surface);
+  color:var(--brand-dark);
+  padding:14px 20px;
   border-bottom:1px solid var(--line);
-  box-shadow:0 4px 18px rgba(8,63,80,.08);
+  box-shadow:0 4px 16px rgba(8,63,80,.08);
 }
 
 .brand{
   display:flex;
   align-items:center;
-  gap:1rem;
+  gap:18px;
   min-width:0;
 }
 
 .brandLogo{
-  width:min(235px,34vw);
-  max-height:62px;
+  display:block;
+  width:min(240px,32vw);
+  max-height:68px;
   object-fit:contain;
   flex:0 0 auto;
 }
 
-.brand h1{
+.brandText h1{
   margin:0;
   color:var(--brand-dark);
-  font-size:clamp(1.15rem,2.4vw,1.8rem);
-  line-height:1.1;
+  font-size:clamp(1.2rem,2.2vw,1.75rem);
+  line-height:1.12;
 }
 
-.brand p{
-  margin:.3rem 0 0;
+.brandText p{
+  margin:5px 0 0;
   color:var(--muted);
-  font-size:.92rem;
+  opacity:1;
 }
 
 .headerActions{
   display:flex;
-  gap:.55rem;
-  flex-wrap:wrap;
+  align-items:center;
   justify-content:flex-end;
+  gap:8px;
+  flex-wrap:wrap;
+}
+
+.headerActions button,
+button:not(.danger),
+.fileBtn{
+  background:var(--brand);
+  color:#fff;
+}
+
+.headerActions button:hover,
+button:not(.danger):hover,
+.fileBtn:hover{
+  background:var(--brand-dark);
 }
 
 nav{
   position:sticky;
   top:0;
   z-index:20;
-  background:rgba(255,255,255,.96);
-  backdrop-filter:blur(10px);
-  border-bottom:1px solid var(--line);
   box-shadow:0 3px 12px rgba(8,63,80,.06);
 }
 
-nav .tab{
-  color:var(--brand-dark);
-}
-
-nav .tab.active{
-  background:var(--brand);
-  color:#fff;
-}
-
-.panel{
-  max-width:1450px;
-  margin:1rem auto;
+.tab.active{
+  color:var(--brand);
+  border-bottom-color:var(--brand);
 }
 
 .cards article{
-  background:linear-gradient(145deg,#fff,var(--brand-soft));
+  border:1px solid var(--line);
+  box-shadow:var(--shadow);
+  background:linear-gradient(145deg,#fff,var(--brand-light));
+}
+
+.cards strong{color:var(--brand-dark)}
+
+.formGrid,
+.tableWrap{
   border:1px solid var(--line);
   box-shadow:var(--shadow);
 }
 
-.cards article strong{
-  color:var(--brand-dark);
-}
-
-button,.fileBtn{
-  border-radius:.65rem;
-}
-
-button:not(.danger),.fileBtn{
-  background:var(--brand);
-  color:#fff;
-  border:1px solid var(--brand);
-}
-
-button:not(.danger):hover,.fileBtn:hover{
-  background:var(--brand-dark);
-}
-
-table{
-  background:#fff;
-}
-
 th{
-  background:var(--brand-soft);
+  background:var(--brand-light);
   color:var(--brand-dark);
 }
 
 .note{
-  border-left:4px solid var(--brand);
   background:#eef8fa;
+  border-left:4px solid var(--brand);
 }
 
 @media(max-width:760px){
   .appHeader{
-    align-items:flex-start;
     flex-direction:column;
-    padding:.85rem;
+    align-items:stretch;
+    gap:10px;
+    padding:12px;
   }
+
   .brand{
-    width:100%;
     align-items:center;
+    gap:10px;
   }
+
   .brandLogo{
-    width:125px;
-    max-height:50px;
+    width:115px;
+    max-height:48px;
   }
-  .brand p{
+
+  .brandText h1{
+    font-size:1.08rem;
+  }
+
+  .brandText p{
     display:none;
   }
+
   .headerActions{
     width:100%;
   }
+
   .headerActions button{
-    flex:1;
+    flex:1 1 140px;
+    margin:0!important;
   }
+
   nav{
-    display:flex;
-    overflow-x:auto;
-    white-space:nowrap;
-    padding:.35rem;
+    padding:2px 4px;
   }
-  nav .tab{
-    flex:0 0 auto;
-  }
-  main{
-    padding:.5rem;
-  }
-  .panel{
-    margin:.5rem auto;
-  }
+
   .cards{
     grid-template-columns:repeat(2,minmax(0,1fr));
-  }
-  .tableWrap{
-    border-radius:.7rem;
   }
 }

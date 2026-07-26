@@ -1,33 +1,26 @@
 CONTROLO HORAS E COMPENSAÇÕES
-==============================
+================================
 
-Versão final de teste 1.0, preparada para GitHub Pages e instalação no telemóvel.
+Esta versão foi criada diretamente a partir do ficheiro:
+Controlo_Horas_PWA_V7_Teste_Telemovel(1).zip
 
-PRINCIPAIS FUNCIONALIDADES
-- Dashboard mensal e anual.
-- Importação de folhas Excel (.xlsx e .xlsm).
-- Deteção de duplicados e histórico das folhas importadas.
-- Cálculo das horas extra pelos multiplicadores configurados.
-- Salário base bruto de 1 500 €.
-- Segurança Social do trabalhador configurada em 11%.
-- IRS estimado para não casado, sem dependentes, Continente.
-- Ajudas de custo e alojamento separados, sem descontos.
-- Saldo conjunto de férias e compensações.
-- Acréscimo anual automático de férias.
-- Backup e restauro dos dados.
-- Instalação PWA e funcionamento offline.
+Mantém as funcionalidades da V7 e acrescenta:
+- Nome definitivo da aplicação.
+- Logótipo no cabeçalho.
+- Ícones da PWA derivados do logótipo.
+- Novo aspeto para computador e telemóvel.
+- Dashboard como nome do primeiro separador.
+- Taxa de Segurança Social visível nas definições.
+- Manifesto e funcionamento offline atualizados.
 
-PUBLICAR NO GITHUB
-1. Extraia o ZIP.
-2. No repositório, escolha Adicionar ficheiro > Carregar ficheiros.
-3. Envie TODOS os ficheiros extraídos para a raiz do repositório.
-4. Confirme as alterações.
-5. Em Configurações > Páginas, publique a ramificação principal e /(raiz).
-6. Aguarde a atualização do GitHub Pages.
+PUBLICAÇÃO NO GITHUB
+1. Extraia este ZIP no computador.
+2. No repositório Controlo-Horas, clique em “Adicionar arquivo”.
+3. Escolha “Carregar arquivos”.
+4. Arraste todos os ficheiros extraídos, e não o próprio ZIP.
+5. Confirme a substituição dos ficheiros existentes.
+6. Clique em “Confirmar alterações”.
 
-ATUALIZAÇÃO
-Ao substituir os ficheiros no mesmo repositório, a aplicação mantém o mesmo endereço.
-No telemóvel pode ser necessário fechar e voltar a abrir a aplicação para receber a versão nova.
-
-DADOS
-Os dados continuam guardados localmente em cada dispositivo. A sincronização PC-telemóvel ainda não está incluída.
+IMPORTANTE
+Os dados existentes no navegador são preservados, porque a chave de armazenamento
+local da aplicação não foi alterada.
