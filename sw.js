@@ -1,4 +1,4 @@
-const CACHE = 'controlo-horas-compensacoes-v1-final';
+const CACHE = 'controlo-horas-compensacoes-v1-1-pagamentos-separados';
 const ASSETS = [
   './',
   './index.html',

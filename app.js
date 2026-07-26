@@ -22,6 +22,9 @@ const grossAutoCard=document.getElementById('grossAutoCard');
 const ssAutoCard=document.getElementById('ssAutoCard');
 const irsAutoCard=document.getElementById('irsAutoCard');
 const monthAutoCard=document.getElementById('monthAutoCard');
+const ajudaAutoCard=document.getElementById('ajudaAutoCard');
+const alojAutoCard=document.getElementById('alojAutoCard');
+const expensesAutoCard=document.getElementById('expensesAutoCard');
 const usedDesc=document.getElementById('usedDesc');
 const payForm=document.getElementById('payForm');
 const payMonth=document.getElementById('payMonth');
@@ -339,10 +342,12 @@ function monthPayment(month,g){
  const irsSal=irs2026(salario);
  const irsHoras=horas*(irsSal.taxaEfetiva/2);
  const irs=irsSal.valor+irsHoras;
- const liquidoTrabalho=Math.max(0,bruto-ss-irs);
- const totalAuto=liquidoTrabalho+num(g.ajValue)+num(g.alValue);
- const total=(c&&c.salary!==null&&c.salary!==''&&c.salary!==undefined)?num(c.salary):totalAuto;
- return {salario,horas,bruto,ss,irsSalario:irsSal.valor,irsHoras,irs,liquidoTrabalho,total,corrected:!!c};
+ const liquidoAuto=Math.max(0,bruto-ss-irs);
+ const liquidoTrabalho=(c&&c.salary!==null&&c.salary!==''&&c.salary!==undefined)?num(c.salary):liquidoAuto;
+ const ajudas=num(g.ajValue);
+ const alojamento=num(g.alValue);
+ const totalAjudas=ajudas+alojamento;
+ return {salario,horas,bruto,ss,irsSalario:irsSal.valor,irsHoras,irs,liquidoTrabalho,ajudas,alojamento,totalAjudas,corrected:!!c};
 }
 function updatePaymentPreview(){
  if(!payMonth.value)return;
@@ -351,7 +356,10 @@ function updatePaymentPreview(){
  grossAutoCard.textContent=euro(p.bruto);
  ssAutoCard.textContent='- '+euro(p.ss);
  irsAutoCard.textContent='- '+euro(p.irs);
- monthAutoCard.textContent=euro(p.total);
+ monthAutoCard.textContent=euro(p.liquidoTrabalho);
+ ajudaAutoCard.textContent=euro(p.ajudas);
+ alojAutoCard.textContent=euro(p.alojamento);
+ expensesAutoCard.textContent=euro(p.totalAjudas);
 }
 payMonth.addEventListener('change',()=>{
  const c=db.payments.find(x=>x.month===payMonth.value);
@@ -400,11 +408,10 @@ function render(){
 }
 function renderMonthly(){
   const groups=groupsByMonth();
-  let html='<tr><th>Mês</th><th>Ordenado líquido</th><th>Horas líquidas</th><th>Ordenado + horas</th><th>Dias ajuda</th><th>Ajudas</th><th>Dias aloj.</th><th>Alojamento</th><th>Ajudas + aloj.</th><th>Total recebido</th><th>Comp. nova</th></tr>';
+  let html='<tr><th>Mês</th><th>Líquido do recibo</th><th>Dias ajuda</th><th>Ajudas de custo</th><th>Dias aloj.</th><th>Alojamento</th><th>Total ajudas + alojamento</th><th>Comp. nova</th></tr>';
   for(const k of Object.keys(groups).sort().reverse()){
     const g=groups[k],p=monthPayment(k,g);
-    const work=num(p.salary)+num(p.hours), expenses=g.ajValue+g.alValue;
-    html+=`<tr><td>${k}</td><td>${euro(p.salary)}${p.corrected?'<br><small>corrigido</small>':''}</td><td>${euro(p.hours)}${p.corrected?'<br><small>corrigido</small>':''}</td><td><strong>${euro(work)}</strong></td><td>${fmt(g.ajDays)}</td><td>${euro(g.ajValue)}</td><td>${fmt(g.alDays)}</td><td>${euro(g.alValue)}</td><td><strong>${euro(expenses)}</strong></td><td><strong>${euro(work+expenses)}</strong></td><td>${fmt(g.comp)}</td></tr>`;
+    html+=`<tr><td>${k}</td><td><strong>${euro(p.liquidoTrabalho)}</strong>${p.corrected?'<br><small>corrigido</small>':''}</td><td>${fmt(g.ajDays)}</td><td>${euro(g.ajValue)}</td><td>${fmt(g.alDays)}</td><td>${euro(g.alValue)}</td><td><strong>${euro(p.totalAjudas)}</strong></td><td>${fmt(g.comp)}</td></tr>`;
   }
   monthlyTable.innerHTML=html;
 }
@@ -412,13 +419,13 @@ function renderAnnual(){
   const months=groupsByMonth(), years={};
   for(const [m,g] of Object.entries(months)){
     const y=m.slice(0,4),p=monthPayment(m,g);
-    years[y]??={salary:0,hours:0,ajDays:0,ajValue:0,alDays:0,alValue:0,comp:0};
-    const a=years[y]; a.salary+=num(p.salary);a.hours+=num(p.hours);a.ajDays+=g.ajDays;a.ajValue+=g.ajValue;a.alDays+=g.alDays;a.alValue+=g.alValue;a.comp+=g.comp;
+    years[y]??={liquido:0,ajDays:0,ajValue:0,alDays:0,alValue:0,comp:0};
+    const a=years[y]; a.liquido+=p.liquidoTrabalho;a.ajDays+=g.ajDays;a.ajValue+=g.ajValue;a.alDays+=g.alDays;a.alValue+=g.alValue;a.comp+=g.comp;
   }
-  let html='<tr><th>Ano</th><th>Ordenados</th><th>Horas</th><th>Ordenado + horas</th><th>Dias ajuda</th><th>Ajudas</th><th>Dias aloj.</th><th>Alojamento</th><th>Ajudas + aloj.</th><th>Total anual</th><th>Comp. nova</th></tr>';
+  let html='<tr><th>Ano</th><th>Total líquido dos recibos</th><th>Dias ajuda</th><th>Ajudas de custo</th><th>Dias aloj.</th><th>Alojamento</th><th>Total ajudas + alojamento</th><th>Comp. nova</th></tr>';
   for(const y of Object.keys(years).sort().reverse()){
-    const a=years[y],work=a.salary+a.hours,expenses=a.ajValue+a.alValue;
-    html+=`<tr><td>${y}</td><td>${euro(a.salary)}</td><td>${euro(a.hours)}</td><td><strong>${euro(work)}</strong></td><td>${fmt(a.ajDays)}</td><td>${euro(a.ajValue)}</td><td>${fmt(a.alDays)}</td><td>${euro(a.alValue)}</td><td><strong>${euro(expenses)}</strong></td><td><strong>${euro(work+expenses)}</strong></td><td>${fmt(a.comp)}</td></tr>`;
+    const a=years[y],expenses=a.ajValue+a.alValue;
+    html+=`<tr><td>${y}</td><td><strong>${euro(a.liquido)}</strong></td><td>${fmt(a.ajDays)}</td><td>${euro(a.ajValue)}</td><td>${fmt(a.alDays)}</td><td>${euro(a.alValue)}</td><td><strong>${euro(expenses)}</strong></td><td>${fmt(a.comp)}</td></tr>`;
   }
   annualTable.innerHTML=html;
 }
@@ -448,10 +455,10 @@ function renderUsed(){
 window.removeUsed=id=>{db.used=db.used.filter(x=>x.id!==id);save()};
 function renderPayments(){
  const groups=groupsByMonth();
- let html='<tr><th>Mês</th><th>Salário bruto</th><th>Horas extra brutas</th><th>Bruto sujeito</th><th>Seg. Social</th><th>IRS salário</th><th>IRS horas extra</th><th>Líquido trabalho</th><th>Ajudas + alojamento</th><th>Total recebido</th></tr>';
+ let html='<tr><th>Mês</th><th>Salário bruto</th><th>Horas extra brutas</th><th>Bruto sujeito</th><th>Seg. Social</th><th>IRS salário</th><th>IRS horas extra</th><th>Líquido do recibo</th><th>Ajudas de custo</th><th>Alojamento</th><th>Total ajudas + alojamento</th></tr>';
  for(const m of Object.keys(groups).sort().reverse()){
-  const g=groups[m],p=monthPayment(m,g),aj=num(g.ajValue)+num(g.alValue);
-  html+=`<tr><td>${m}</td><td>${euro(p.salario)}</td><td>${euro(p.horas)}</td><td>${euro(p.bruto)}</td><td>- ${euro(p.ss)}</td><td>- ${euro(p.irsSalario)}</td><td>- ${euro(p.irsHoras)}</td><td><strong>${euro(p.liquidoTrabalho)}</strong></td><td>${euro(aj)}</td><td><strong>${euro(p.total)}</strong></td></tr>`;
+  const g=groups[m],p=monthPayment(m,g);
+  html+=`<tr><td>${m}</td><td>${euro(p.salario)}</td><td>${euro(p.horas)}</td><td>${euro(p.bruto)}</td><td>- ${euro(p.ss)}</td><td>- ${euro(p.irsSalario)}</td><td>- ${euro(p.irsHoras)}</td><td><strong>${euro(p.liquidoTrabalho)}</strong>${p.corrected?'<br><small>corrigido</small>':''}</td><td>${euro(p.ajudas)}</td><td>${euro(p.alojamento)}</td><td><strong>${euro(p.totalAjudas)}</strong></td></tr>`;
  }
  payTable.innerHTML=html; updatePaymentPreview();
 }

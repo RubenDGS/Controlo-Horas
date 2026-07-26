@@ -70,15 +70,22 @@
 
 <section id="recebimentos" class="panel">
 <p class="note"><strong>Cálculo automático:</strong> salário bruto e horas extra sujeitos a Segurança Social e IRS. Configuração atual: não casado, sem dependentes, Continente. Ajudas de custo e alojamento permanecem separados e sem descontos.</p>
+<h2>Recibo de vencimento</h2>
 <div class="cards miniCards">
 <article><span>Bruto sujeito</span><strong id="grossAutoCard">0,00 €</strong></article>
 <article><span>Segurança Social</span><strong id="ssAutoCard">0,00 €</strong></article>
 <article><span>IRS</span><strong id="irsAutoCard">0,00 €</strong></article>
-<article><span>Total recebido</span><strong id="monthAutoCard">0,00 €</strong></article>
+<article><span>Líquido do recibo</span><strong id="monthAutoCard">0,00 €</strong></article>
+</div>
+<h2>Ajudas pagas à parte</h2>
+<div class="cards miniCards">
+<article><span>Ajudas de custo</span><strong id="ajudaAutoCard">0,00 €</strong></article>
+<article><span>Alojamento</span><strong id="alojAutoCard">0,00 €</strong></article>
+<article><span>Total ajudas + alojamento</span><strong id="expensesAutoCard">0,00 €</strong></article>
 </div>
 <form id="payForm" class="formGrid">
 <label>Mês<input id="payMonth" type="month" required></label>
-<label>Correção do total líquido (€)<input id="paySalary" type="number" min="0" step="0.01" placeholder="Vazio = automático"></label>
+<label>Correção do líquido do recibo (€)<input id="paySalary" type="number" min="0" step="0.01" placeholder="Vazio = automático"></label>
 <label>Correção das horas extra brutas (€)<input id="payHours" type="number" min="0" step="0.01" placeholder="Vazio = automático"></label>
 <button>Guardar correção</button>
 </form>
