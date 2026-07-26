@@ -29,6 +29,9 @@
   <button class="tab active" data-tab="resumo">Dashboard</button>
   <button class="tab" data-tab="folhas">Folhas</button>
   <button class="tab" data-tab="recebimentos">Recebimentos</button>
+  <button class="tab" data-tab="analises">Análises</button>
+  <button class="tab" data-tab="calendario">Calendário</button>
+  <button class="tab" data-tab="conferencia">Conferir recibo</button>
   <button class="tab" data-tab="compensacoes">Compensações</button>
   <button class="tab" data-tab="definicoes">Definições</button>
 </nav>
@@ -36,11 +39,16 @@
 <div id="connectionStatus" class="connectionStatus" aria-live="polite"></div>
 <main>
 <section id="resumo" class="panel active">
+  <div class="dashboardHeader"><label>Mês do dashboard <input id="dashMonth" type="month"></label></div>
   <div class="cards">
-    <article><span>Saldo de compensação</span><strong id="saldoCard">41 dias</strong></article>
-    <article><span>Horas extra</span><strong id="horasCard">0 h</strong></article>
-    <article><span>Ajudas de custo</span><strong id="ajudasCard">0,00 €</strong></article>
-    <article><span>Alojamento</span><strong id="alojCard">0,00 €</strong></article>
+    <article><span>Líquido do recibo no mês</span><strong id="dashNetCard">0,00 €</strong></article>
+    <article><span>Horas extra no mês</span><strong id="dashHoursMonthCard">0 h</strong></article>
+    <article><span>Ajudas de custo no mês</span><strong id="dashTravelCard">0,00 €</strong></article>
+    <article><span>Alojamento no mês</span><strong id="dashLodgingCard">0,00 €</strong></article>
+    <article><span>Saldo férias/compensações</span><strong id="saldoCard">41 dias</strong></article>
+    <article><span>Horas extra acumuladas</span><strong id="horasCard">0 h</strong></article>
+    <article><span>Ajudas acumuladas</span><strong id="ajudasCard">0,00 €</strong></article>
+    <article><span>Alojamento acumulado</span><strong id="alojCard">0,00 €</strong></article>
   </div>
 
   <div class="toolbar">
@@ -105,6 +113,32 @@
 <div class="tableWrap"><table id="payTable"></table></div>
 </section>
 
+
+<section id="analises" class="panel">
+  <h2>Análises e evolução</h2>
+  <div class="formGrid compact"><label>Ano<select id="analysisYear"></select></label><label>Agrupar por<select id="analysisGroup"><option value="cliente">Cliente</option><option value="local">Local/obra</option></select></label></div>
+  <div class="chartBox"><canvas id="moneyChart" height="240"></canvas></div>
+  <div class="chartBox"><canvas id="hoursChart" height="240"></canvas></div>
+  <h2>Resumo por cliente ou local</h2><div class="tableWrap"><table id="groupTable"></table></div>
+  <h2>Resumo anual completo</h2><div class="tableWrap"><table id="fullAnnualTable"></table></div>
+</section>
+
+<section id="calendario" class="panel">
+  <h2>Calendário de atividade</h2>
+  <div class="formGrid compact"><label>Mês<input id="calendarMonth" type="month"></label></div>
+  <div class="calendarLegend"><span>🟢 Trabalho</span><span>🔵 Deslocação</span><span>🟠 Alojamento</span><span>🔴 Férias</span><span>🟣 Compensação</span></div>
+  <div id="calendarGrid" class="calendarGrid"></div>
+  <div id="calendarDetail" class="note">Seleciona um dia para ver o detalhe.</div>
+</section>
+
+<section id="conferencia" class="panel">
+  <h2>Conferência automática do recibo</h2>
+  <p class="note">Carrega o recibo em PDF. A aplicação tenta ler o texto e comparar o líquido, horas extra, Segurança Social e IRS com os valores calculados. Confirma sempre visualmente, porque alguns PDFs são imagens e podem não permitir leitura automática.</p>
+  <div class="formGrid compact"><label>Mês a conferir<input id="receiptMonth" type="month"></label><label>Recibo PDF<input id="receiptFile" type="file" accept="application/pdf"></label></div>
+  <button id="checkReceiptBtn" type="button">Analisar recibo</button>
+  <div id="receiptResult"></div>
+</section>
+
 <section id="compensacoes" class="panel">
   <div class="cards miniCards">
     <article><span>Saldo total disponível</span><strong id="saldoFeriasCard">0 dias</strong></article>
@@ -159,6 +193,7 @@
 </main>
 
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs" type="module"></script>
 <script src="app.js"></script>
 <script>
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {

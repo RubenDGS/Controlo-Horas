@@ -41,6 +41,11 @@ const saldoCard=document.getElementById('saldoCard');
 const horasCard=document.getElementById('horasCard');
 const ajudasCard=document.getElementById('ajudasCard');
 const alojCard=document.getElementById('alojCard');
+const dashMonth=document.getElementById('dashMonth');
+const dashNetCard=document.getElementById('dashNetCard');
+const dashHoursMonthCard=document.getElementById('dashHoursMonthCard');
+const dashTravelCard=document.getElementById('dashTravelCard');
+const dashLodgingCard=document.getElementById('dashLodgingCard');
 
 const defaults={
  settings:{salarioBase:1500,taxaSS:11,valorHora:8.65,ajudaDia:90,alojDia:65,saldoInicial:41,dataCorte:'2026-07-25',diasFeriasAnuais:22,primeiroAnoFerias:2027,m25:.25,m125:1.25,m1375:1.375,m150:1.5,m165:1.65},
@@ -217,7 +222,7 @@ fileInput.addEventListener('change',async e=>{
       if(db.sheets.some(s=>s.name.toLowerCase()===file.name.toLowerCase())){msg(`Já existe um ficheiro chamado ${file.name}.`,'warn');continue}
       const buffer=await file.arrayBuffer(); const hash=await sha256(buffer);
       if(db.sheets.some(s=>s.hash===hash)){msg(`${file.name}: conteúdo já importado com outro nome.`,'warn');continue}
-      const s=parseFile(file,buffer,hash); db.sheets.push(s);
+      const s=parseFile(file,buffer,hash); db.sheets.push(s); await storeOriginalFile(s.id,file);
       msg(`${file.name}: ${s.diasAjuda} dia(s) de ajuda e ${s.diasAloj} dia(s) de alojamento.`, 'ok');
     }catch(err){msg(`${file.name}: ${err.message}`,'err')}
   }
@@ -410,7 +415,7 @@ function render(){
   horasCard.textContent=`${fmt(totalH)} h`;
   ajudasCard.textContent=euro(db.sheets.reduce((a,x)=>a+num(x.diasAjuda)*num(x.ajudaUnit||s.ajudaDia),0));
   alojCard.textContent=euro(db.sheets.reduce((a,x)=>a+num(x.diasAloj)*num(x.alojUnit||s.alojDia),0));
-  renderMonthly(); renderAnnual(); renderSheets(); renderUsed(); renderPayments();
+  renderMonthly(); renderAnnual(); renderSheets(); renderUsed(); renderPayments(); renderDashboard(); renderAnalyses(); renderCalendar();
 }
 function renderMonthly(){
   const groups=groupsByMonth();
@@ -441,7 +446,7 @@ function renderSheets(){
   for(const x of [...db.sheets].sort((a,b)=>b.dataFinal.localeCompare(a.dataFinal))){
     if(!norm(`${x.name} ${x.cliente} ${x.local} ${x.processo} ${x.dataFinal}`).includes(q))continue;
     html+=`<tr>
-      <td>${x.name}</td><td>${x.dataInicial}<br>${x.dataFinal}</td><td>${x.cliente}</td><td>${x.local}</td><td>${x.processo}</td>
+      <td>${x.name}<br><button onclick="openOriginal('${x.id}',encodeURIComponent('${x.name}'))">Abrir original</button></td><td>${x.dataInicial}<br>${x.dataFinal}</td><td>${x.cliente}</td><td>${x.local}</td><td>${x.processo}</td>
       <td>${fmt(x.h25)}</td><td>${fmt(x.h125)}</td><td>${fmt(x.h1375)}</td><td>${fmt(x.h150)}</td><td>${fmt(x.h165)}</td>
       <td><input type="number" step="1" min="0" value="${x.diasAjuda}" onchange="edit('${x.id}','diasAjuda',this.value)"><small>${x.ajudaCell||'não detetada'}</small></td>
       <td><input type="number" step="0.01" min="0" value="${x.ajudaUnit||db.settings.ajudaDia}" onchange="edit('${x.id}','ajudaUnit',this.value)"></td>
@@ -541,3 +546,74 @@ window.addEventListener('appinstalled', () => {
   deferredInstallPrompt = null;
   if(installAppBtn) installAppBtn.hidden = true;
 });
+
+// ===== Funcionalidades avançadas v2.0 =====
+function openFilesDb(){
+  return new Promise((resolve,reject)=>{
+    const req=indexedDB.open('controloHorasFiles',1);
+    req.onupgradeneeded=()=>req.result.createObjectStore('files');
+    req.onsuccess=()=>resolve(req.result); req.onerror=()=>reject(req.error);
+  });
+}
+async function storeOriginalFile(id,file){
+  try{const d=await openFilesDb(); const tx=d.transaction('files','readwrite'); tx.objectStore('files').put(file,id)}catch(e){console.warn('Não foi possível arquivar o original',e)}
+}
+window.openOriginal=async(id,encodedName)=>{
+  try{
+    const d=await openFilesDb(); const tx=d.transaction('files','readonly');
+    const req=tx.objectStore('files').get(id);
+    req.onsuccess=()=>{
+      if(!req.result){alert('O original desta folha não está guardado neste dispositivo. Volta a importá-lo para o arquivar.');return}
+      const a=document.createElement('a');a.href=URL.createObjectURL(req.result);a.download=decodeURIComponent(encodedName);a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1500);
+    };
+  }catch{alert('Não foi possível abrir o ficheiro original.')}
+};
+
+function renderDashboard(){
+  if(!dashMonth)return;
+  dashMonth.value ||= new Date().toISOString().slice(0,7);
+  const g=groupsByMonth()[dashMonth.value]||{h25:0,h125:0,h1375:0,h150:0,h165:0,ajValue:0,alValue:0};
+  const p=monthPayment(dashMonth.value,g);
+  const h=['h25','h125','h1375','h150','h165'].reduce((a,k)=>a+num(g[k]),0);
+  dashNetCard.textContent=euro(p.liquidoTrabalho); dashHoursMonthCard.textContent=`${fmt(h)} h`;
+  dashTravelCard.textContent=euro(p.ajudas); dashLodgingCard.textContent=euro(p.alojamento);
+}
+if(dashMonth)dashMonth.addEventListener('change',renderDashboard);
+
+function drawBars(canvas,labels,values,title,suffix='€'){
+  if(!canvas)return; const ctx=canvas.getContext('2d'); const ratio=devicePixelRatio||1;
+  const w=Math.max(700,canvas.parentElement.clientWidth-24),h=240; canvas.width=w*ratio;canvas.height=h*ratio;canvas.style.width=w+'px';canvas.style.height=h+'px';ctx.scale(ratio,ratio);
+  ctx.clearRect(0,0,w,h);ctx.font='13px sans-serif';ctx.fillText(title,12,18);
+  const max=Math.max(1,...values), left=48,bottom=38,top=30,plotH=h-top-bottom,plotW=w-left-12,barW=plotW/Math.max(1,values.length);
+  ctx.strokeStyle='#cbd8dd';ctx.beginPath();ctx.moveTo(left,top);ctx.lineTo(left,h-bottom);ctx.lineTo(w-12,h-bottom);ctx.stroke();
+  values.forEach((v,i)=>{const bh=(v/max)*plotH;ctx.fillStyle='#0b5e75';ctx.fillRect(left+i*barW+barW*.18,h-bottom-bh,barW*.64,bh);ctx.fillStyle='#20343c';ctx.textAlign='center';ctx.fillText(labels[i],left+i*barW+barW/2,h-bottom+17);ctx.fillText(suffix==='€'?Math.round(v).toLocaleString('pt-PT'):fmt(v),left+i*barW+barW/2,Math.max(top+12,h-bottom-bh-5));});
+}
+function renderAnalyses(){
+  const yearSel=document.getElementById('analysisYear'); if(!yearSel)return;
+  const groups=groupsByMonth(),years=[...new Set(Object.keys(groups).map(x=>x.slice(0,4)))].sort().reverse(); const cy=String(new Date().getFullYear());
+  const selected=yearSel.value||years[0]||cy;yearSel.innerHTML=(years.length?years:[cy]).map(y=>`<option ${y===selected?'selected':''}>${y}</option>`).join('');
+  const year=yearSel.value; const months=Array.from({length:12},(_,i)=>`${year}-${String(i+1).padStart(2,'0')}`);
+  const money=[],hours=[]; months.forEach(m=>{const g=groups[m]||{h25:0,h125:0,h1375:0,h150:0,h165:0,ajValue:0,alValue:0};const p=monthPayment(m,g);money.push(p.liquidoTrabalho+p.totalAjudas);hours.push(['h25','h125','h1375','h150','h165'].reduce((a,k)=>a+num(g[k]),0));});
+  drawBars(document.getElementById('moneyChart'),months.map(m=>m.slice(5)),money,'Total recebido por mês','€');
+  drawBars(document.getElementById('hoursChart'),months.map(m=>m.slice(5)),hours,'Horas extra por mês','h');
+  const mode=document.getElementById('analysisGroup')?.value||'cliente',agg={};
+  db.sheets.filter(x=>x.dataFinal.startsWith(year)).forEach(x=>{const key=(x[mode]||'Sem indicação').trim()||'Sem indicação';agg[key]??={folhas:0,h:0,aj:0,al:0};const a=agg[key];a.folhas++;a.h+=['h25','h125','h1375','h150','h165'].reduce((z,k)=>z+num(x[k]),0);a.aj+=num(x.diasAjuda)*num(x.ajudaUnit||db.settings.ajudaDia);a.al+=num(x.diasAloj)*num(x.alojUnit||db.settings.alojDia)});
+  document.getElementById('groupTable').innerHTML='<tr><th>'+ (mode==='cliente'?'Cliente':'Local/obra') +'</th><th>Folhas</th><th>Horas extra</th><th>Ajudas</th><th>Alojamento</th></tr>'+Object.entries(agg).sort((a,b)=>b[1].h-a[1].h).map(([k,a])=>`<tr><td>${k}</td><td>${a.folhas}</td><td>${fmt(a.h)} h</td><td>${euro(a.aj)}</td><td>${euro(a.al)}</td></tr>`).join('');
+  const annualLeave=annualLeaveAdded(new Date(Number(year),11,31)),used=db.used.filter(x=>x.date.startsWith(year)).reduce((a,x)=>a+num(x.days),0),comp=db.sheets.filter(x=>x.dataFinal.startsWith(year)).reduce((a,x)=>a+num(x.compConta),0);
+  document.getElementById('fullAnnualTable').innerHTML=`<tr><th>Ano</th><th>Líquido recibos</th><th>Horas extra</th><th>Ajudas</th><th>Alojamento</th><th>Comp. gerada</th><th>Dias usados</th><th>Férias adicionadas acumuladas</th></tr><tr><td>${year}</td><td>${euro(money.reduce((a,v,i)=>a+(monthPayment(months[i],groups[months[i]]||{}).liquidoTrabalho),0))}</td><td>${fmt(hours.reduce((a,v)=>a+v,0))} h</td><td>${euro(months.reduce((a,m)=>a+num(groups[m]?.ajValue),0))}</td><td>${euro(months.reduce((a,m)=>a+num(groups[m]?.alValue),0))}</td><td>${fmt(comp)}</td><td>${fmt(used)}</td><td>${fmt(annualLeave)}</td></tr>`;
+}
+document.getElementById('analysisYear')?.addEventListener('change',renderAnalyses);document.getElementById('analysisGroup')?.addEventListener('change',renderAnalyses);window.addEventListener('resize',()=>setTimeout(renderAnalyses,100));
+
+function renderCalendar(){
+  const inp=document.getElementById('calendarMonth');if(!inp)return;inp.value ||= new Date().toISOString().slice(0,7);const [y,m]=inp.value.split('-').map(Number),first=new Date(y,m-1,1),days=new Date(y,m,0).getDate();let html='';const offset=(first.getDay()+6)%7;for(let i=0;i<offset;i++)html+='<div class="calendarDay empty"></div>';
+  for(let d=1;d<=days;d++){const date=`${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;const sh=db.sheets.filter(x=>date>=x.dataInicial&&date<=x.dataFinal),u=db.used.filter(x=>date>=x.date&&date<=(x.endDate||x.date));let marks='';if(sh.length)marks+='🟢';if(sh.some(x=>x.diasAjuda>0))marks+='🔵';if(sh.some(x=>x.diasAloj>0))marks+='🟠';if(u.some(x=>x.type==='Férias'))marks+='🔴';if(u.some(x=>x.type!=='Férias'))marks+='🟣';html+=`<div class="calendarDay" data-date="${date}"><div class="n">${d}</div><div class="marks">${marks}</div></div>`}
+  document.getElementById('calendarGrid').innerHTML=html;document.querySelectorAll('.calendarDay[data-date]').forEach(el=>el.onclick=()=>showCalendarDay(el.dataset.date));
+}
+function showCalendarDay(date){const sh=db.sheets.filter(x=>date>=x.dataInicial&&date<=x.dataFinal),u=db.used.filter(x=>date>=x.date&&date<=(x.endDate||x.date));document.getElementById('calendarDetail').innerHTML=`<strong>${new Date(date+'T12:00').toLocaleDateString('pt-PT',{dateStyle:'full'})}</strong><br>${sh.length?sh.map(x=>`Trabalho: ${x.cliente||'Sem cliente'} · ${x.local||'Sem local'} · ${x.name}`).join('<br>'):'Sem folha de trabalho'}${u.length?'<br>'+u.map(x=>`${x.type}: ${x.desc||''}`).join('<br>'):''}`}
+document.getElementById('calendarMonth')?.addEventListener('change',renderCalendar);
+
+async function extractPdfText(file){
+  const pdfjs=await import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs');pdfjs.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs';const pdf=await pdfjs.getDocument({data:await file.arrayBuffer()}).promise;let text='';for(let i=1;i<=pdf.numPages;i++){const page=await pdf.getPage(i),c=await page.getTextContent();text+=' '+c.items.map(x=>x.str).join(' ')}return text;
+}
+function moneyNear(text,words){for(const w of words){const i=text.toLowerCase().indexOf(w);if(i>=0){const part=text.slice(i,i+130),ms=[...part.matchAll(/\d{1,3}(?:[ .]\d{3})*(?:[,.]\d{2})/g)];if(ms.length)return num(ms.at(-1)[0])}}return null}
+document.getElementById('checkReceiptBtn')?.addEventListener('click',async()=>{const file=document.getElementById('receiptFile').files[0],month=document.getElementById('receiptMonth').value||new Date().toISOString().slice(0,7),out=document.getElementById('receiptResult');if(!file){out.innerHTML='<p class="errText">Seleciona um recibo em PDF.</p>';return}out.innerHTML='<p>A analisar o recibo…</p>';try{const text=await extractPdfText(file);if(text.trim().length<30)throw new Error('O PDF parece ser uma imagem e não contém texto legível.');const g=groupsByMonth()[month]||{},p=monthPayment(month,g);const found={liquido:moneyNear(text,['líquido','liquido','valor líquido']),ss:moneyNear(text,['segurança social','seguranca social']),irs:moneyNear(text,['irs']),horas:moneyNear(text,['trabalho suplementar','horas extra'])};const rows=[['Líquido do recibo',p.liquidoTrabalho,found.liquido],['Segurança Social',p.ss,found.ss],['IRS',p.irs,found.irs],['Horas extra brutas',p.horas,found.horas]];out.innerHTML='<div class="resultCard"><h3>Resultado da comparação</h3><table>'+rows.map(([n,a,b])=>{const ok=b!==null&&Math.abs(a-b)<1;return `<tr><td>${n}</td><td>Aplicação: ${euro(a)}</td><td>Recibo: ${b===null?'não detetado':euro(b)}</td><td class="${ok?'okText':'warnText'}">${ok?'✓ Coincide':'⚠ Verificar'}</td></tr>`}).join('')+'</table></div>'}catch(e){out.innerHTML=`<p class="errText">${e.message}</p>`}});

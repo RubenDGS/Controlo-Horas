@@ -1,31 +1,13 @@
-CONTROLO HORAS E COMPENSAÇÕES
-================================
+CONTROLO HORAS E COMPENSAÇÕES — VERSÃO 2.0
 
-Esta versão foi criada diretamente a partir do ficheiro:
-Controlo_Horas_PWA_V7_Teste_Telemovel(1).zip
+Novidades:
+- Dashboard mensal e acumulado
+- Histórico mensal e anual de recebimentos
+- Gráficos de dinheiro recebido e horas extra
+- Resumo por cliente e por local/obra
+- Calendário de trabalho, deslocação, alojamento, férias e compensações
+- Arquivo do Excel original para novas importações (guardado no dispositivo)
+- Conferência experimental de recibos PDF com texto pesquisável
+- Backup e restauro da base de dados
 
-Mantém as funcionalidades da V7 e acrescenta:
-- Nome definitivo da aplicação.
-- Logótipo no cabeçalho.
-- Ícones da PWA derivados do logótipo.
-- Novo aspeto para computador e telemóvel.
-- Dashboard como nome do primeiro separador.
-- Taxa de Segurança Social visível nas definições.
-- Manifesto e funcionamento offline atualizados.
-
-PUBLICAÇÃO NO GITHUB
-1. Extraia este ZIP no computador.
-2. No repositório Controlo-Horas, clique em “Adicionar arquivo”.
-3. Escolha “Carregar arquivos”.
-4. Arraste todos os ficheiros extraídos, e não o próprio ZIP.
-5. Confirme a substituição dos ficheiros existentes.
-6. Clique em “Confirmar alterações”.
-
-IMPORTANTE
-Os dados existentes no navegador são preservados, porque a chave de armazenamento
-local da aplicação não foi alterada.
-
-VERSÃO 1.2 — HISTÓRICO DE RECEBIMENTOS
-- Filtro por ano na área Recebimentos.
-- Totais anuais separados: líquido dos recibos, ajudas de custo e alojamento.
-- Histórico mensal com nome do mês, descontos, valores separados e total global apenas para consulta.
+Nota: a sincronização automática entre PC e telemóvel exige uma base de dados online e login. Esta versão continua a guardar os dados localmente em cada dispositivo.
