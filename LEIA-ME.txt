@@ -1,0 +1,75 @@
+CONTROLO DE HORAS V2 - VERSÃO DE TESTE
+
+COMO ABRIR NO COMPUTADOR
+1. Extraia todo o conteúdo do ZIP para uma pasta.
+2. Abra o ficheiro index.html com o Google Chrome ou Microsoft Edge.
+3. Mantenha ligação à Internet ao abrir, porque a biblioteca que lê Excel é carregada online.
+4. Carregue em "Importar folhas" e escolha os ficheiros .xlsx ou .xlsm.
+
+O QUE FOI CORRIGIDO
+- A aplicação percorre toda a folha.
+- Procura o texto "Ajuda de custos" e lê o número na coluna "Dias".
+- Procura o texto "Alojamento à Fatura" e lê o número na coluna "Dias".
+- No modelo analisado, são reconhecidas diretamente as células J26 e J27.
+- Exemplo: 6 dias x 90 € = 540 €.
+- O valor diário existente no próprio texto da folha, como 80 € ou 90 €, é respeitado.
+- Mostra resumo mensal e anual.
+- Ordenado + horas ficam separados de ajudas de custo + alojamento.
+- Permite indicar o ordenado líquido e as horas líquidas realmente recebidas em cada mês.
+- Mantém o saldo inicial consolidado de 41 dias até 25/07/2026.
+
+NOTA
+Os dados ficam guardados apenas no navegador deste equipamento. Use regularmente o botão "Criar backup".
+
+
+NOVIDADE DA VERSÃO V4
+- Férias e dias de compensação usam um único saldo.
+- O saldo inicial mantém-se em 41 dias.
+- Em 01/01/2027 entram automaticamente 22 dias.
+- Em cada 1 de janeiro seguinte entram mais 22 dias.
+- O número anual e o primeiro ano podem ser alterados nas Definições.
+- Ao marcar um período de férias, a aplicação calcula os dias úteis de segunda a sexta-feira.
+- O número calculado pode ser corrigido manualmente antes de guardar.
+
+
+NOVIDADE DA VERSÃO V5
+- Os recebimentos passam a ser calculados automaticamente.
+- Para cada mês com pelo menos uma folha importada, soma:
+  ordenado líquido mensal + valor das horas extraordinárias + ajudas de custo + alojamento.
+- Mesmo que em janeiro exista apenas uma semana com horas extra, o mês apresenta o ordenado líquido completo e soma as horas dessa semana.
+- Fórmula das horas: valor/hora × horas de cada categoria × respetivo multiplicador.
+- O ecrã Recebimentos permite correções manuais, mas os campos podem ficar vazios.
+- Ao apagar uma correção, o mês volta ao cálculo automático.
+
+
+VERSÃO V6: 1500 € brutos; 11% Segurança Social; IRS 2026 Tabela I; horas extra com metade da taxa efetiva; ajudas e alojamento sem descontos.
+
+
+VERSÃO PWA V7
+==============
+Esta versão está preparada para instalar no telemóvel e funcionar offline.
+
+IMPORTANTE
+A instalação PWA exige que a aplicação seja aberta através de um endereço HTTPS.
+Abrir apenas o ficheiro index.html no telemóvel não ativa todas as funções de instalação.
+
+TESTE RÁPIDO ONLINE COM NETLIFY DROP
+1. No computador, extraia este ZIP.
+2. Aceda a https://app.netlify.com/drop
+3. Arraste a pasta extraída para a página.
+4. O Netlify cria um endereço HTTPS.
+5. Abra esse endereço no telemóvel.
+
+INSTALAR NO ANDROID
+1. Abra o endereço no Chrome.
+2. Toque em “Instalar aplicação” ou no menu ⋮.
+3. Escolha “Adicionar ao ecrã principal” / “Instalar aplicação”.
+
+INSTALAR NO IPHONE
+1. Abra o endereço no Safari.
+2. Toque no botão Partilhar.
+3. Escolha “Adicionar ao ecrã principal”.
+
+DADOS
+Os dados ficam guardados separadamente em cada dispositivo.
+A sincronização automática entre PC e telemóvel ainda não está incluída nesta versão de teste.

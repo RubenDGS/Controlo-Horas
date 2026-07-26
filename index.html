@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0b5e75">
+  <title>Controlo de Horas PWA V7 Corrigido</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header>
+  <div>
+    <h1>Controlo de Horas PWA V7 Corrigido</h1>
+    <p>Lê a folha completa e identifica ajudas de custo e alojamento</p>
+  </div>
+  <button id="backupBtn">Criar backup</button>
+<button id="installAppBtn" type="button" hidden>📲 Instalar aplicação</button></header>
+
+<nav>
+  <button class="tab active" data-tab="resumo">Resumo</button>
+  <button class="tab" data-tab="folhas">Folhas</button>
+  <button class="tab" data-tab="recebimentos">Recebimentos</button>
+  <button class="tab" data-tab="compensacoes">Compensações</button>
+  <button class="tab" data-tab="definicoes">Definições</button>
+</nav>
+
+<div id="connectionStatus" class="connectionStatus" aria-live="polite"></div>
+<main>
+<section id="resumo" class="panel active">
+  <div class="cards">
+    <article><span>Saldo de compensação</span><strong id="saldoCard">41 dias</strong></article>
+    <article><span>Horas extra</span><strong id="horasCard">0 h</strong></article>
+    <article><span>Ajudas de custo</span><strong id="ajudasCard">0,00 €</strong></article>
+    <article><span>Alojamento</span><strong id="alojCard">0,00 €</strong></article>
+  </div>
+
+  <div class="toolbar">
+    <label class="fileBtn">Importar folhas
+      <input id="fileInput" type="file" accept=".xlsx,.xlsm" multiple>
+    </label>
+    <button id="restoreBtn">Restaurar backup</button>
+    <input id="restoreInput" type="file" accept=".json" hidden>
+  </div>
+
+  <div id="messages"></div>
+
+  <h2>Resumo mensal</h2>
+  <p class="hint">Ordenado e horas ficam separados das ajudas de custo e do alojamento.</p>
+  <div class="tableWrap"><table id="monthlyTable"></table></div>
+
+  <h2>Resumo anual</h2>
+  <div class="tableWrap"><table id="annualTable"></table></div>
+</section>
+
+<section id="folhas" class="panel">
+  <div class="toolbar">
+    <input id="search" placeholder="Pesquisar cliente, local, processo, mês, ano ou ficheiro">
+  </div>
+  <div class="tableWrap"><table id="sheetsTable"></table></div>
+</section>
+
+<section id="recebimentos" class="panel">
+<p class="note"><strong>Cálculo automático de 2026:</strong> salário bruto e horas extra sujeitos a Segurança Social e IRS. Ajudas de custo e alojamento ficam separados e sem descontos.</p>
+<div class="cards miniCards">
+<article><span>Bruto sujeito</span><strong id="grossAutoCard">0,00 €</strong></article>
+<article><span>Segurança Social</span><strong id="ssAutoCard">0,00 €</strong></article>
+<article><span>IRS</span><strong id="irsAutoCard">0,00 €</strong></article>
+<article><span>Total recebido</span><strong id="monthAutoCard">0,00 €</strong></article>
+</div>
+<form id="payForm" class="formGrid">
+<label>Mês<input id="payMonth" type="month" required></label>
+<label>Correção do total líquido (€)<input id="paySalary" type="number" min="0" step="0.01" placeholder="Vazio = automático"></label>
+<label>Correção das horas extra brutas (€)<input id="payHours" type="number" min="0" step="0.01" placeholder="Vazio = automático"></label>
+<button>Guardar correção</button>
+</form>
+<h2>Recebimentos por mês</h2>
+<div class="tableWrap"><table id="payTable"></table></div>
+</section>
+
+<section id="compensacoes" class="panel">
+  <div class="cards miniCards">
+    <article><span>Saldo total disponível</span><strong id="saldoFeriasCard">0 dias</strong></article>
+    <article><span>Férias anuais já acrescentadas</span><strong id="feriasAnuaisCard">0 dias</strong></article>
+    <article><span>Dias utilizados</span><strong id="diasUsadosCard">0 dias</strong></article>
+  </div>
+
+  <p class="note">Férias e dias de compensação ficam todos no mesmo saldo. Em 1 de janeiro de cada ano, a aplicação acrescenta automaticamente os dias anuais configurados.</p>
+
+  <form id="usedForm" class="formGrid">
+    <label>Tipo
+      <select id="usedType">
+        <option value="Férias">Férias</option>
+        <option value="Folga">Folga</option>
+        <option value="Compensação">Compensação</option>
+        <option value="Outro">Outro</option>
+      </select>
+    </label>
+    <label>Data inicial<input id="usedDate" type="date" required></label>
+    <label>Data final<input id="usedEndDate" type="date" required></label>
+    <label>Dias a descontar<input id="usedDays" type="number" min="0.5" step="0.5" required></label>
+    <label>Descrição<input id="usedDesc" placeholder="Ex.: férias de verão"></label>
+    <button>Registar e descontar</button>
+  </form>
+  <p class="hint">Ao escolher as datas, a aplicação calcula automaticamente os dias úteis de segunda a sexta-feira. Podes corrigir manualmente o número antes de guardar.</p>
+
+  <h2>Histórico de férias, folgas e compensações</h2>
+  <div class="tableWrap"><table id="usedTable"></table></div>
+</section>
+
+<section id="definicoes" class="panel">
+  <form id="settingsForm" class="formGrid settings">
+    <label>Salário base bruto (€)<input name="salarioBase" type="number" step="0.01"></label>
+    <label>Valor hora (€)<input name="valorHora" type="number" step="0.01"></label>
+    <label>Ajuda de custo padrão/dia (€)<input name="ajudaDia" type="number" step="0.01"></label>
+    <label>Alojamento/dia (€)<input name="alojDia" type="number" step="0.01"></label>
+    <label>Saldo consolidado (dias)<input name="saldoInicial" type="number" step="0.5"></label>
+    <label>Consolidado até<input name="dataCorte" type="date"></label>
+    <label>Férias anuais a acrescentar<input name="diasFeriasAnuais" type="number" min="0" step="0.5"></label>
+    <label>Primeiro ano de acréscimo<input name="primeiroAnoFerias" type="number" min="2026" step="1"></label>
+    <label>Multiplicador 25%<input name="m25" type="number" step="0.001"></label>
+    <label>Multiplicador 125%<input name="m125" type="number" step="0.001"></label>
+    <label>Multiplicador 137,5%<input name="m1375" type="number" step="0.001"></label>
+    <label>Multiplicador 150%<input name="m150" type="number" step="0.001"></label>
+    <label>Multiplicador 165%<input name="m165" type="number" step="0.001"></label>
+    <button>Guardar definições</button>
+  </form>
+  <p class="note">As folhas até 25/07/2026 não voltam a aumentar os 41 dias já consolidados. A partir de 01/01/2027 são acrescentados automaticamente 22 dias por ano ao mesmo saldo.</p>
+  <button id="clearBtn" class="danger">Apagar todos os dados de teste</button>
+</section>
+</main>
+
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<script src="app.js"></script>
+<script>
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+  navigator.serviceWorker.register('sw.js');
+}
+</script>
+</body>
+</html>
