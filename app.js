@@ -9,6 +9,11 @@ const annualTable=document.getElementById('annualTable');
 const sheetsTable=document.getElementById('sheetsTable');
 const usedTable=document.getElementById('usedTable');
 const payTable=document.getElementById('payTable');
+const payYearFilter=document.getElementById('payYearFilter');
+const yearNetCard=document.getElementById('yearNetCard');
+const yearTravelCard=document.getElementById('yearTravelCard');
+const yearLodgingCard=document.getElementById('yearLodgingCard');
+const yearGlobalCard=document.getElementById('yearGlobalCard');
 const search=document.getElementById('search');
 const usedForm=document.getElementById('usedForm');
 const usedDate=document.getElementById('usedDate');
@@ -361,6 +366,7 @@ function updatePaymentPreview(){
  alojAutoCard.textContent=euro(p.alojamento);
  expensesAutoCard.textContent=euro(p.totalAjudas);
 }
+if(payYearFilter)payYearFilter.addEventListener('change',renderPayments);
 payMonth.addEventListener('change',()=>{
  const c=db.payments.find(x=>x.month===payMonth.value);
  paySalary.value=c?.salary??'';
@@ -453,14 +459,36 @@ function renderUsed(){
   [...db.used].sort((a,b)=>b.date.localeCompare(a.date)).map(x=>`<tr><td>${x.type||'Registo'}</td><td>${x.date}${x.endDate&&x.endDate!==x.date?'<br>a '+x.endDate:''}</td><td>${fmt(x.days)}</td><td>${x.desc||''}</td><td><button onclick="removeUsed('${x.id}')">Apagar</button></td></tr>`).join('');
 }
 window.removeUsed=id=>{db.used=db.used.filter(x=>x.id!==id);save()};
+function monthName(month){
+ const [y,m]=month.split('-').map(Number);
+ return new Date(y,m-1,1).toLocaleDateString('pt-PT',{month:'long',year:'numeric'}).replace(/^./,c=>c.toUpperCase());
+}
 function renderPayments(){
  const groups=groupsByMonth();
- let html='<tr><th>Mês</th><th>Salário bruto</th><th>Horas extra brutas</th><th>Bruto sujeito</th><th>Seg. Social</th><th>IRS salário</th><th>IRS horas extra</th><th>Líquido do recibo</th><th>Ajudas de custo</th><th>Alojamento</th><th>Total ajudas + alojamento</th></tr>';
- for(const m of Object.keys(groups).sort().reverse()){
-  const g=groups[m],p=monthPayment(m,g);
-  html+=`<tr><td>${m}</td><td>${euro(p.salario)}</td><td>${euro(p.horas)}</td><td>${euro(p.bruto)}</td><td>- ${euro(p.ss)}</td><td>- ${euro(p.irsSalario)}</td><td>- ${euro(p.irsHoras)}</td><td><strong>${euro(p.liquidoTrabalho)}</strong>${p.corrected?'<br><small>corrigido</small>':''}</td><td>${euro(p.ajudas)}</td><td>${euro(p.alojamento)}</td><td><strong>${euro(p.totalAjudas)}</strong></td></tr>`;
+ const months=Object.keys(groups).sort().reverse();
+ const years=[...new Set(months.map(m=>m.slice(0,4)))].sort().reverse();
+ const currentYear=String(new Date().getFullYear());
+ if(payYearFilter){
+   const selected=payYearFilter.value|| (years.includes(currentYear)?currentYear:(years[0]||currentYear));
+   payYearFilter.innerHTML=years.length?years.map(y=>`<option value="${y}"${y===selected?' selected':''}>${y}</option>`).join(''):`<option value="${currentYear}">${currentYear}</option>`;
  }
- payTable.innerHTML=html; updatePaymentPreview();
+ const year=payYearFilter?.value||years[0]||currentYear;
+ let totalNet=0,totalTravel=0,totalLodging=0;
+ let html='<tr><th>Mês</th><th>Salário bruto</th><th>Horas extra brutas</th><th>Descontos</th><th>Líquido do recibo</th><th>Ajudas de custo</th><th>Alojamento</th><th>Total ajudas + alojamento</th><th>Total global</th></tr>';
+ for(const m of months.filter(x=>x.startsWith(year))){
+  const g=groups[m],p=monthPayment(m,g);
+  const discounts=p.ss+p.irs;
+  const global=p.liquidoTrabalho+p.totalAjudas;
+  totalNet+=p.liquidoTrabalho; totalTravel+=p.ajudas; totalLodging+=p.alojamento;
+  html+=`<tr><td><strong>${monthName(m)}</strong></td><td>${euro(p.salario)}</td><td>${euro(p.horas)}</td><td>- ${euro(discounts)}<br><small>SS ${euro(p.ss)} · IRS ${euro(p.irs)}</small></td><td><strong>${euro(p.liquidoTrabalho)}</strong>${p.corrected?'<br><small>corrigido manualmente</small>':''}</td><td>${euro(p.ajudas)}</td><td>${euro(p.alojamento)}</td><td><strong>${euro(p.totalAjudas)}</strong></td><td><strong>${euro(global)}</strong></td></tr>`;
+ }
+ if(!months.some(x=>x.startsWith(year)))html+='<tr><td colspan="9" class="emptyCell">Ainda não existem recebimentos registados neste ano.</td></tr>';
+ payTable.innerHTML=html;
+ if(yearNetCard)yearNetCard.textContent=euro(totalNet);
+ if(yearTravelCard)yearTravelCard.textContent=euro(totalTravel);
+ if(yearLodgingCard)yearLodgingCard.textContent=euro(totalLodging);
+ if(yearGlobalCard)yearGlobalCard.textContent=euro(totalNet+totalTravel+totalLodging);
+ updatePaymentPreview();
 }
 window.editPayment=id=>{
   const x=db.payments.find(x=>x.id===id);if(!x)return;

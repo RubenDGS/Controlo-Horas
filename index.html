@@ -89,7 +89,19 @@
 <label>Correção das horas extra brutas (€)<input id="payHours" type="number" min="0" step="0.01" placeholder="Vazio = automático"></label>
 <button>Guardar correção</button>
 </form>
-<h2>Recebimentos por mês</h2>
+<h2>Histórico de recebimentos</h2>
+<div class="historyControls">
+  <label>Ano
+    <select id="payYearFilter"></select>
+  </label>
+</div>
+<div class="cards miniCards historyCards">
+  <article><span>Total líquido dos recibos</span><strong id="yearNetCard">0,00 €</strong></article>
+  <article><span>Total ajudas de custo</span><strong id="yearTravelCard">0,00 €</strong></article>
+  <article><span>Total alojamento</span><strong id="yearLodgingCard">0,00 €</strong></article>
+  <article><span>Total global do ano</span><strong id="yearGlobalCard">0,00 €</strong></article>
+</div>
+<p class="hint">O líquido do recibo aparece separado das ajudas de custo e do alojamento. O total global serve apenas como resumo do dinheiro recebido no mês.</p>
 <div class="tableWrap"><table id="payTable"></table></div>
 </section>
 

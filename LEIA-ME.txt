@@ -24,3 +24,8 @@ PUBLICAÇÃO NO GITHUB
 IMPORTANTE
 Os dados existentes no navegador são preservados, porque a chave de armazenamento
 local da aplicação não foi alterada.
+
+VERSÃO 1.2 — HISTÓRICO DE RECEBIMENTOS
+- Filtro por ano na área Recebimentos.
+- Totais anuais separados: líquido dos recibos, ajudas de custo e alojamento.
+- Histórico mensal com nome do mês, descontos, valores separados e total global apenas para consulta.

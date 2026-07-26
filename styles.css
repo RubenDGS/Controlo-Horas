@@ -191,3 +191,6 @@ th{
     grid-template-columns:repeat(2,minmax(0,1fr));
   }
 }
+
+.historyControls{display:flex;justify-content:flex-end;align-items:end;margin:0 0 14px}.historyControls label{display:grid;gap:6px;font-weight:700}.historyControls select{min-width:120px;padding:10px 12px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;font:inherit}.historyCards{margin-bottom:14px}.emptyCell{text-align:center;padding:24px!important;color:#64748b}
+@media(max-width:720px){.historyControls{justify-content:stretch}.historyControls label,.historyControls select{width:100%}}
