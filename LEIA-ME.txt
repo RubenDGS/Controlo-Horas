@@ -92,17 +92,10 @@ ATUALIZAÇÃO V3.8 — REGRA DEFINITIVA DAS HORAS
 - O detalhe diário mantém-se apenas para datas e cálculo do subsídio de refeição.
 
 
-CORREÇÃO V3.9
-- Corrigida a leitura de valores monetários portugueses.
-- O líquido deixa de combinar valores aleatórios do recibo.
-- Só são aceites líquidos plausíveis entre 300 € e 10 000 €.
-- Para corrigir os meses antigos, apaga e volta a importar os recibos.
-
-
-CORREÇÃO V4.0 — ORDENADO LÍQUIDO
-- As horas a 100% servem apenas para estatística por cliente, mês e ano.
-- As horas a 100% nunca são somadas ao salário, porque já estão incluídas no ordenado base.
-- Só 25%, 125%, 137,5%, 150% e 165% acrescentam valor ao salário.
-- Valores antigos superiores a 10 000 € são automaticamente ignorados e limpos.
-- O Dashboard passa a mostrar “Ordenado líquido” para evitar confusão.
-- Mantêm-se as horas a 100% nas tabelas de Clientes e nos resumos de horas.
+VERSÃO V4.2 — RECUPERAÇÃO
+- Reposta integralmente a base estável da versão 3.8.
+- Não altera nem apaga folhas, recibos ou resumos.
+- Procura automaticamente dados guardados por versões anteriores.
+- Recupera a cópia local que tiver o maior número de folhas.
+- Volta a guardar os dados recuperados na chave principal.
+- Não é necessário apagar nem voltar a importar folhas antes de testar.
