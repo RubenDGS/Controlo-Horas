@@ -90,3 +90,10 @@ ATUALIZAÇÃO V3.8 — REGRA DEFINITIVA DAS HORAS
 - Dashboard, Clientes, Resumo Mensal, Resumo Anual e comparação com recibos usam a mesma regra.
 - Cada folha é somada uma única vez no mês correspondente à data final da folha.
 - O detalhe diário mantém-se apenas para datas e cálculo do subsídio de refeição.
+
+
+CORREÇÃO V3.9
+- Corrigida a leitura de valores monetários portugueses.
+- O líquido deixa de combinar valores aleatórios do recibo.
+- Só são aceites líquidos plausíveis entre 300 € e 10 000 €.
+- Para corrigir os meses antigos, apaga e volta a importar os recibos.

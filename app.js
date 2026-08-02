@@ -178,7 +178,10 @@ function monthGroup(m){
 
  return g;
 }
-function salaryMonth(m){const g=monthGroup(m),grossHours=overtimeValue(g),gross=db.settings.salarioBase+grossHours,ss=gross*db.settings.taxaSS/100,irsBase=irs2026(db.settings.salarioBase),irsHours=grossHours*(irsBase.effective/2),net=gross-ss-irsBase.value-irsHours;const correction=db.payments.find(x=>x.month===m);return{...g,grossHours,gross,ss,irs:irsBase.value+irsHours,net:correction?.net??net}}
+function salaryMonth(m){const g=monthGroup(m),grossHours=overtimeValue(g),gross=db.settings.salarioBase+grossHours,ss=gross*db.settings.taxaSS/100,irsBase=irs2026(db.settings.salarioBase),irsHours=grossHours*(irsBase.effective/2),net=gross-ss-irsBase.value-irsHours;const correction=db.payments.find(x=>x.month===m);const receipt=db.receipts.find(r=>r.month===m);
+ const receiptNet=num(receipt?.parsed?.net);
+ const safeReceiptNet=receiptNet>=300&&receiptNet<=10000?receiptNet:null;
+ return{...g,grossHours,gross,ss,irs:irsBase.value+irsHours,net:safeReceiptNet??correction?.net??net}}
 function easterDate(y){const a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),month=Math.floor((h+l-7*m+114)/31),day=((h+l-7*m+114)%31)+1;return new Date(y,month-1,day)}
 function isoLocal(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
 function holidays(y){const fixed=['01-01','04-25','05-01','06-10','08-15','10-05','11-01','12-01','12-08','12-25'].map(x=>`${y}-${x}`);const e=easterDate(y),good=new Date(e);good.setDate(e.getDate()-2);const corpus=new Date(e);corpus.setDate(e.getDate()+60);return new Set([...fixed,isoLocal(good),isoLocal(e),isoLocal(corpus)])}
@@ -336,23 +339,52 @@ function renderLocations(){
  $('locationResults').innerHTML=rows.map(x=>`<article class="locationCard"><h3>${x.name}</h3><p><strong>${x.source}</strong></p><p>${x.address||'Sem morada'}</p>${x.lat&&x.lon?`<p>${x.lat.toFixed(6)}, ${x.lon.toFixed(6)}</p><div class="locationActions"><a target="_blank" href="https://www.google.com/maps/search/?api=1&query=${x.lat},${x.lon}"><button>Google Maps</button></a><button type="button" onclick="openWaze(${x.lat},${x.lon})">Waze</button></div>`:'<p>Coordenadas não disponíveis</p>'}</article>`).join('')||'<p>Sem resultados.</p>';
 }
 
-function parsePtNumber(s){return num(String(s||'').replace(/\s/g,''))}
+function parsePtNumber(s){
+ const raw=String(s??'').trim().replace(/€/g,'').replace(/\s+/g,'');
+ if(!raw)return 0;
+ const normalized=raw.replace(/\.(?=\d{3}(?:\D|$))/g,'').replace(',','.');
+ const n=Number(normalized);
+ return Number.isFinite(n)?n:0;
+}
 function monthNameToNumber(name){const m={janeiro:'01',fevereiro:'02',marco:'03',março:'03',abril:'04',maio:'05',junho:'06',julho:'07',agosto:'08',setembro:'09',outubro:'10',novembro:'11',dezembro:'12'};return m[norm(name)]||''}
 function parseReceiptText(text){
- const clean=text.replace(/\u00a0/g,' ').replace(/[ \t]+/g,' ');
+ const clean=text.replace(/\u00a0/g,' ').replace(/[ \t]+/g,' ').replace(/\s*\n\s*/g,' ');
  const mm=clean.match(/\b(janeiro|fevereiro|março|marco|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)\s+(20\d{2})\b/i);
  const month=mm?`${mm[2]}-${monthNameToNumber(mm[1])}`:'';
- const line=(label)=>{const i=norm(clean).indexOf(norm(label));return i<0?'':clean.slice(i,i+180)};
- const money=(s)=>[...s.matchAll(/(\d{1,3}(?:[.\s]\d{3})*|\d+)[,.](\d{2})\s*€/g)].map(m=>parsePtNumber(m[0]));
- const baseVals=money(line('Ordenado Base')),base=baseVals.at(-1)??null;
- const extraPart=line('Hora Extra'),extraNums=[...extraPart.matchAll(/(\d+(?:[,.]\d+)?)/g)].map(m=>parsePtNumber(m[1]));
- const extraMoney=money(extraPart),extraHours=extraNums.length?extraNums[0]:null,extraValue=extraMoney.at(-1)??null;
- const ssVals=money(line('Segurança Social')),ss=ssVals.at(-1)??null;
- const irsParts=[...clean.matchAll(/Imposto\s*S\/Rendimento[\s\S]{0,120}?(\d+(?:[,.]\d{2}))\s*€/gi)].map(m=>parsePtNumber(m[1]));
- const irs=irsParts.length?irsParts.reduce((a,b)=>a+b,0):null;
- const amounts=money(clean);let subject=null,discounts=null,net=null;
- for(const a of amounts)for(const b of amounts)for(const c of amounts)if(a>b&&Math.abs(a-b-c)<.02){subject=a;discounts=b;net=c}
- return {month,base,extraHours,extraValue,ss,irs,subject,discounts,net,text:clean};
+ const moneyRe=/(\d{1,3}(?:[.\s]\d{3})*|\d+)[,.](\d{2})\s*€/g;
+ const values=s=>[...String(s||'').matchAll(moneyRe)].map(m=>parsePtNumber(m[0]));
+ const block=label=>{const i=norm(clean).indexOf(norm(label));return i<0?'':clean.slice(i,i+220)};
+
+ const baseVals=values(block('Ordenado Base'));
+ const base=baseVals.length?baseVals.at(-1):null;
+
+ const extraBlock=block('Hora Extra');
+ const qty=extraBlock.match(/Hora\s*Extra\s+(\d+(?:[,.]\d+)?)/i);
+ const extraHours=qty?parsePtNumber(qty[1]):null;
+ const extraVals=values(extraBlock);
+ const extraValue=extraVals.length?extraVals.at(-1):null;
+
+ const ssVals=values(block('Segurança Social'));
+ const ss=ssVals.length?ssVals.at(-1):null;
+
+ const irs=[];
+ for(const m of clean.matchAll(/Imposto\s*S\/Rendimento[\s\S]{0,110}?(\d{1,3}(?:[.\s]\d{3})*|\d+)[,.](\d{2})\s*€/gi)){
+  const v=values(m[0]);if(v.length)irs.push(v.at(-1));
+ }
+ const irsTotal=irs.length?irs.reduce((a,b)=>a+b,0):null;
+
+ let subject=null,discounts=null,net=null;
+ const all=values(clean).filter(v=>v>0&&v<10000);
+ let best=null;
+ for(const a of all)for(const b of all)for(const c of all){
+  if(a>b&&Math.abs(a-b-c)<0.02){
+   const score=(c>=300&&c<=5000?10:0)+(a>=1000?2:0)+(b<1000?1:0);
+   if(!best||score>best.score)best={a,b,c,score};
+  }
+ }
+ if(best){subject=best.a;discounts=best.b;net=best.c}
+
+ return {month,base,extraHours,extraValue,ss,irs:irsTotal,subject,discounts,net,text:clean};
 }
 async function extractReceipt(file){
  $('receiptProgress').textContent='A ler o recibo automaticamente…';let text='';
