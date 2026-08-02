@@ -100,28 +100,84 @@ function calculateHoursFromRow(ws,r){
 function findSheet(wb){return wb.Sheets['MD-RH-04 - Registo de Horas']||wb.Sheets[wb.SheetNames.find(n=>norm(n).includes('registo de horas'))]||wb.Sheets[wb.SheetNames[0]]}
 function parseTimesheet(file,buffer,hash){
  const wb=XLSX.read(buffer,{type:'array',cellDates:true}),ws=findSheet(wb),entries=[];
+
+ // As linhas diárias servem apenas para datas e cobertura do subsídio de refeição.
+ // Nunca são usadas para calcular totais de horas.
  for(let r=15;r<=22;r++){
-  const date=excelDate(cell(ws,`A${r}`));if(!date)continue;
-  let normal=hourValue(cell(ws,`I${r}`)),h25=hourValue(cell(ws,`J${r}`)),h125=hourValue(cell(ws,`K${r}`)),h1375=hourValue(cell(ws,`L${r}`)),h150=hourValue(cell(ws,`M${r}`)),h165=hourValue(cell(ws,`N${r}`));
-  if(normal+h25+h125+h1375+h150+h165===0){
-   const calc=calculateHoursFromRow(ws,r);({normal,h25,h125,h1375,h150,h165}=calc);
-  }
-  entries.push({date,dayType:String(cell(ws,`B${r}`)||''),normal,h25,h125,h1375,h150,h165});
+  const date=excelDate(cell(ws,`A${r}`));
+  if(!date)continue;
+  entries.push({
+   date,
+   dayType:String(cell(ws,`B${r}`)||'')
+  });
  }
+
  if(!entries.length)throw new Error('Não foram encontradas datas nas linhas 15 a 22.');
- const dataInicial=entries.map(x=>x.date).sort()[0],dataFinal=entries.map(x=>x.date).sort().at(-1);
- const cliente=String(cell(ws,'C10')||'').trim(),local=String(cell(ws,'I10')||'').trim(),processo=String(cell(ws,'M10')||'').trim();
- const diasAjuda=num(cell(ws,'J26')),diasAloj=num(cell(ws,'J27'));
- const summed=entries.reduce((a,x)=>{for(const k of ['normal','h25','h125','h1375','h150','h165'])a[k]+=num(x[k]);return a},{normal:0,h25:0,h125:0,h1375:0,h150:0,h165:0});
- const official={normal:hourValue(cell(ws,'I23')),h25:hourValue(cell(ws,'J23')),h125:hourValue(cell(ws,'K23')),h1375:hourValue(cell(ws,'L23')),h150:hourValue(cell(ws,'M23')),h165:hourValue(cell(ws,'N23'))};
- const totals=Object.values(official).some(v=>num(v)!==0)?official:summed;
- const compGerada=entries.reduce((a,x)=>{const t=norm(x.dayType);return a+(t.includes('domingo')?1:(t.includes('sabado')||t.includes('feriado')?.5:0))},0);
- return {id:uid(),name:file.name,hash,cliente,local,processo,dataInicial,dataFinal,entries,...totals,diasAjuda,diasAloj,ajudaUnit:db.settings.ajudaDia,alojUnit:db.settings.alojDia,compGerada,compConta:dataFinal>db.settings.dataCorte?compGerada:0,hoursVersion:3,originalKey:'sheet-'+hash,imported:new Date().toISOString(),_file:file};
+
+ const dataInicial=entries.map(x=>x.date).sort()[0];
+ const dataFinal=entries.map(x=>x.date).sort().at(-1);
+ const cliente=String(cell(ws,'C10')||'').trim();
+ const local=String(cell(ws,'I10')||'').trim();
+ const processo=String(cell(ws,'M10')||'').trim();
+ const diasAjuda=num(cell(ws,'J26'));
+ const diasAloj=num(cell(ws,'J27'));
+
+ // REGRA ÚNICA: ler apenas a linha TOTAL da folha.
+ // Estes valores já estão em horas decimais de 30 em 30 minutos:
+ // 0,5 = 30 min; 1 = 1 h; 1,5 = 1 h 30 min.
+ const normal=num(cell(ws,'I23'));
+ const h25=num(cell(ws,'J23'));
+ const h125=num(cell(ws,'K23'));
+ const h1375=num(cell(ws,'L23'));
+ const h150=num(cell(ws,'M23'));
+ const h165=num(cell(ws,'N23'));
+
+ const compGerada=entries.reduce((a,x)=>{
+  const t=norm(x.dayType);
+  return a+(t.includes('domingo')?1:(t.includes('sabado')||t.includes('feriado')?.5:0));
+ },0);
+
+ return {
+  id:uid(),name:file.name,hash,cliente,local,processo,dataInicial,dataFinal,entries,
+  normal,h25,h125,h1375,h150,h165,
+  diasAjuda,diasAloj,
+  ajudaUnit:db.settings.ajudaDia,
+  alojUnit:db.settings.alojDia,
+  compGerada,
+  compConta:dataFinal>db.settings.dataCorte?compGerada:0,
+  hoursVersion:5,
+  totalsSource:'I23:N23',
+  originalKey:'sheet-'+hash,
+  imported:new Date().toISOString(),
+  _file:file
+ };
 }
 function overtimeValue(g){const s=db.settings;return s.valorHora*(num(g.h25)*s.m25+num(g.h125)*s.m125+num(g.h1375)*s.m1375+num(g.h150)*s.m150+num(g.h165)*s.m165)}
 function irs2026(R){R=Math.max(0,num(R));let t=0,a=0;if(R<=920){}else if(R<=1042){t=.125;a=.125*2.6*(1273.85-R)}else if(R<=1108){t=.157;a=.157*1.35*(1554.83-R)}else if(R<=1154){t=.157;a=94.71}else if(R<=1212){t=.212;a=158.18}else if(R<=1819){t=.241;a=193.33}else if(R<=2119){t=.311;a=320.66}else if(R<=2499){t=.349;a=401.19}else if(R<=3305){t=.3836;a=487.66}else if(R<=5547){t=.3969;a=531.62}else if(R<=20221){t=.4495;a=823.4}else{t=.4717;a=1272.31}const v=Math.max(0,R*t-a);return{value:v,effective:R?v/R:0}}
 function sheetsForMonth(m){return db.sheets.filter(s=>monthOf(s.dataFinal)===m||s.entries?.some(e=>monthOf(e.date)===m))}
-function monthGroup(m){const g={normal:0,h25:0,h125:0,h1375:0,h150:0,h165:0,travelDays:0,lodgingDays:0,travel:0,lodging:0,comp:0};for(const s of sheetsForMonth(m)){for(const e of s.entries||[]){if(monthOf(e.date)!==m)continue;for(const k of ['normal','h25','h125','h1375','h150','h165'])g[k]+=num(e[k])}if(monthOf(s.dataFinal)===m){g.travelDays+=num(s.diasAjuda);g.lodgingDays+=num(s.diasAloj);g.travel+=num(s.diasAjuda)*num(s.ajudaUnit||db.settings.ajudaDia);g.lodging+=num(s.diasAloj)*num(s.alojUnit||db.settings.alojDia);g.comp+=num(s.compConta)}}return g}
+function monthGroup(m){
+ const g={normal:0,h25:0,h125:0,h1375:0,h150:0,h165:0,travelDays:0,lodgingDays:0,travel:0,lodging:0,comp:0};
+
+ for(const s of db.sheets){
+  if(monthOf(s.dataFinal)!==m)continue;
+
+  // Somar cada folha uma única vez, usando apenas os totais oficiais I23:N23.
+  g.normal+=num(s.normal);
+  g.h25+=num(s.h25);
+  g.h125+=num(s.h125);
+  g.h1375+=num(s.h1375);
+  g.h150+=num(s.h150);
+  g.h165+=num(s.h165);
+
+  g.travelDays+=num(s.diasAjuda);
+  g.lodgingDays+=num(s.diasAloj);
+  g.travel+=num(s.diasAjuda)*num(s.ajudaUnit||db.settings.ajudaDia);
+  g.lodging+=num(s.diasAloj)*num(s.alojUnit||db.settings.alojDia);
+  g.comp+=num(s.compConta);
+ }
+
+ return g;
+}
 function salaryMonth(m){const g=monthGroup(m),grossHours=overtimeValue(g),gross=db.settings.salarioBase+grossHours,ss=gross*db.settings.taxaSS/100,irsBase=irs2026(db.settings.salarioBase),irsHours=grossHours*(irsBase.effective/2),net=gross-ss-irsBase.value-irsHours;const correction=db.payments.find(x=>x.month===m);return{...g,grossHours,gross,ss,irs:irsBase.value+irsHours,net:correction?.net??net}}
 function easterDate(y){const a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),month=Math.floor((h+l-7*m+114)/31),day=((h+l-7*m+114)%31)+1;return new Date(y,month-1,day)}
 function isoLocal(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
@@ -340,8 +396,35 @@ window.showReceiptComparison=function(id,scroll=true){
 function renderSettings(){for(const el of $('settingsForm').elements)if(el.name)el.value=db.settings[el.name]??''}
 function render(){renderDashboard();renderSheets();renderPayments();renderClients();renderExpenses();renderLeave();renderLocations();renderReceipts();renderSettings()}
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab,.panel').forEach(x=>x.classList.remove('active'));b.classList.add('active');$(b.dataset.tab).classList.add('active')});
-$('fileInput').onchange=async e=>{if(!window.XLSX){message('Não foi possível carregar o leitor de Excel. Confirma a ligação à Internet.','err');return}pendingImports=[];for(const f of [...e.target.files]){try{if(db.sheets.some(s=>s.name.toLowerCase()===f.name.toLowerCase()))throw new Error('já existe um ficheiro com este nome');const buffer=await f.arrayBuffer(),hash=await hashBuffer(buffer);if(db.sheets.some(s=>s.hash===hash))throw new Error('conteúdo já importado');const item=parseTimesheet(f,buffer,hash);if(isClosed(monthOf(item.dataFinal)))throw new Error('o mês está fechado');pendingImports.push(item)}catch(err){message(`${f.name}: ${err.message}`,'err')}}showImportPreview();e.target.value=''};
-function showImportPreview(){if(!pendingImports.length)return;const box=$('importPreview');box.innerHTML=`<h2>Confirmar importação</h2>${pendingImports.map(x=>`<div class="previewItem"><strong>${x.name}</strong><br>${x.cliente} · ${x.local}<br>${x.dataInicial} a ${x.dataFinal}<br>Normais: ${fmt(x.normal)} h · Extra: ${fmt(x.h25+x.h125+x.h1375+x.h150+x.h165)} h · Ajuda: ${x.diasAjuda} dias · Alojamento: ${x.diasAloj} dias</div>`).join('')}<div class="toolbar"><button id="confirmImport">Confirmar</button><button id="cancelImport">Cancelar</button></div>`;box.classList.remove('hidden');$('confirmImport').onclick=async()=>{for(const item of pendingImports){if(item._file)await storeFile(item.originalKey,item._file);delete item._file;db.sheets.push(item)}pendingImports=[];box.classList.add('hidden');save();message('Folhas importadas e originais arquivados.','ok')};$('cancelImport').onclick=()=>{pendingImports=[];box.classList.add('hidden')}}
+$('fileInput').onchange=async e=>{
+ if(!window.XLSX){message('Não foi possível carregar o leitor de Excel. Confirma a ligação à Internet.','err');return}
+ pendingImports=[];
+ for(const f of [...e.target.files]){
+  try{
+   const buffer=await f.arrayBuffer(),hash=await hashBuffer(buffer);
+   const item=parseTimesheet(f,buffer,hash);
+   if(isClosed(monthOf(item.dataFinal)))throw new Error('o mês está fechado');
+   const existing=db.sheets.find(s=>s.name.toLowerCase()===f.name.toLowerCase()||s.hash===hash);
+   item.replaceId=existing?.id||null;
+   pendingImports.push(item);
+  }catch(err){message(`${f.name}: ${err.message}`,'err')}
+ }
+ showImportPreview();e.target.value='';
+};
+function showImportPreview(){if(!pendingImports.length)return;const box=$('importPreview');box.innerHTML=`<h2>Confirmar importação</h2>${pendingImports.map(x=>`<div class="previewItem"><strong>${x.name}</strong>${x.replaceId?' <span class="closedBadge">Substituir existente</span>':''}<br>${x.cliente} · ${x.local}<br>${x.dataInicial} a ${x.dataFinal}<br>TOTAL da folha → 100%: ${fmt(x.normal)} h · 25%: ${fmt(x.h25)} h · 125%: ${fmt(x.h125)} h · 137,5%: ${fmt(x.h1375)} h · 150%: ${fmt(x.h150)} h · 165%: ${fmt(x.h165)} h</div>`).join('')}<div class="toolbar"><button id="confirmImport">Confirmar</button><button id="cancelImport">Cancelar</button></div>`;box.classList.remove('hidden');$('confirmImport').onclick=async()=>{
+ for(const item of pendingImports){
+  if(item.replaceId){
+   const old=db.sheets.find(s=>s.id===item.replaceId);
+   if(old?.originalKey)await deleteStoredFile(old.originalKey);
+   db.sheets=db.sheets.filter(s=>s.id!==item.replaceId);
+  }
+  if(item._file)await storeFile(item.originalKey,item._file);
+  delete item._file;delete item.replaceId;
+  db.sheets.push(item);
+ }
+ pendingImports=[];box.classList.add('hidden');save();
+ message('Folhas importadas/substituídas com os totais oficiais da linha 23.','ok')
+};$('cancelImport').onclick=()=>{pendingImports=[];box.classList.add('hidden')}}
 $('expenseForm').onsubmit=e=>{e.preventDefault();if($('expenseDate').value<db.settings.inicioDespesas){alert(`Só são aceites despesas a partir de ${db.settings.inicioDespesas}.`);return}if(isClosed(monthOf($('expenseDate').value))){alert('Este mês está fechado.');return}const existing=db.expenses.find(x=>x.date===$('expenseDate').value),obj={id:existing?.id||uid(),date:$('expenseDate').value,food:num($('expenseFood').value),sleep:num($('expenseSleep').value),note:$('expenseNote').value};existing?Object.assign(existing,obj):db.expenses.push(obj);save();$('expenseFood').value=0;$('expenseSleep').value=0;$('expenseNote').value=''}
 $('leaveForm').onsubmit=e=>{e.preventDefault();const obj={id:uid(),type:$('leaveType').value,date:$('leaveStart').value,endDate:$('leaveEnd').value,days:num($('leaveDays').value),desc:$('leaveNote').value};db.used.push(obj);save()}
 function workingDays(a,b){let n=0;if(!a||!b)return n;for(let d=new Date(a+'T12:00:00'),end=new Date(b+'T12:00:00');d<=end;d.setDate(d.getDate()+1))if(d.getDay()!==0&&d.getDay()!==6)n++;return n}

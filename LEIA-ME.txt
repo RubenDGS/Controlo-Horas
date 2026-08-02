@@ -71,3 +71,22 @@ CORREÇÃO V3.6
 - Cada folha é contabilizada apenas uma vez, usando os totais oficiais guardados na própria folha.
 - Evita duplicação de horas extra por cliente/local.
 - Acrescentada coluna com o número de folhas incluídas em cada cliente/local.
+
+
+CORREÇÃO V3.7
+- Corrigido o erro principal: 0,5 horas estava a ser interpretado como 12 horas.
+- As células I:N e os totais I23:N23 são agora lidos como horas decimais.
+- A página Clientes usa exclusivamente os totais oficiais I23:N23 de cada folha.
+- Importação em lote das 35 folhas.
+- Se uma folha já existir, a nova importação substitui-a automaticamente.
+- O ecrã de confirmação mostra os totais de 100%, 25%, 125%, 137,5%, 150% e 165% antes de guardar.
+
+
+ATUALIZAÇÃO V3.8 — REGRA DEFINITIVA DAS HORAS
+- Cada folha é contabilizada exclusivamente pelos totais da linha 23.
+- I23 = 100%; J23 = 25%; K23 = 125%; L23 = 137,5%; M23 = 150%; N23 = 165%.
+- As linhas diárias nunca são usadas para calcular horas.
+- 0,5 é tratado como 30 minutos; 1 como 1 hora; 1,5 como 1 hora e 30 minutos.
+- Dashboard, Clientes, Resumo Mensal, Resumo Anual e comparação com recibos usam a mesma regra.
+- Cada folha é somada uma única vez no mês correspondente à data final da folha.
+- O detalhe diário mantém-se apenas para datas e cálculo do subsídio de refeição.
