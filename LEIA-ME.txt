@@ -55,3 +55,12 @@ CORREÇÕES V3.4
 - O subsídio de refeição exclui todos os dias úteis abrangidos pelo período de uma folha semanal.
 - O cartão identifica explicitamente “dias sem folha”.
 - Para corrigir folhas importadas em versões anteriores, é necessário apagá-las e voltar a importá-las nesta versão, porque os dados antigos não guardaram as horas de início/fim necessárias para recalcular com exatidão.
+
+
+ALTERAÇÕES V3.5
+- Horas lidas diretamente das células oficiais I:N e dos totais I23:N23.
+- Folhas Excel originais guardadas e disponíveis no botão “Abrir original”.
+- Leitura automática de recibos PDF.
+- Tentativa de leitura de fotografias por OCR.
+- Comparação automática de horas extra, ordenado base, valor das horas extra, Segurança Social, IRS e líquido.
+- O recibo apenas indica o total de horas extra; a separação por percentagens vem das folhas.

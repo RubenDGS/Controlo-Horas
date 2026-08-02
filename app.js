@@ -1,4 +1,11 @@
 const KEY='controloHorasV6';
+const FILE_DB='controloHorasFicheiros';
+function fileDb(){return new Promise((resolve,reject)=>{const req=indexedDB.open(FILE_DB,1);req.onupgradeneeded=()=>{const db=req.result;if(!db.objectStoreNames.contains('files'))db.createObjectStore('files')};req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error)})}
+async function storeFile(key,blob){const db=await fileDb();return new Promise((res,rej)=>{const tx=db.transaction('files','readwrite');tx.objectStore('files').put(blob,key);tx.oncomplete=res;tx.onerror=()=>rej(tx.error)})}
+async function getStoredFile(key){const db=await fileDb();return new Promise((res,rej)=>{const req=db.transaction('files').objectStore('files').get(key);req.onsuccess=()=>res(req.result);req.onerror=()=>rej(req.error)})}
+async function deleteStoredFile(key){const db=await fileDb();return new Promise((res,rej)=>{const tx=db.transaction('files','readwrite');tx.objectStore('files').delete(key);tx.oncomplete=res;tx.onerror=()=>rej(tx.error)})}
+async function downloadStoredFile(key,name){const blob=await getStoredFile(key);if(!blob){alert('O ficheiro original não está disponível neste dispositivo.');return}const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000)}
+
 const $=id=>document.getElementById(id);
 const defaults={settings:{salarioBase:1500,taxaSS:11,valorHora:8.65,ajudaDia:90,alojDia:65,refeicaoDia:10.46,inicioDespesas:'2027-01-01',saldoInicial:41,dataCorte:'2026-07-25',diasFeriasAnuais:22,primeiroAnoFerias:2027,m25:.25,m125:1.25,m1375:1.375,m150:1.5,m165:1.65},sheets:[],used:[],payments:[],expenses:[],receipts:[],closedMonths:[]};
 let db=load(),locations=[],pendingImports=[];
@@ -94,28 +101,22 @@ function findSheet(wb){return wb.Sheets['MD-RH-04 - Registo de Horas']||wb.Sheet
 function parseTimesheet(file,buffer,hash){
  const wb=XLSX.read(buffer,{type:'array',cellDates:true}),ws=findSheet(wb),entries=[];
  for(let r=15;r<=22;r++){
-  const date=excelDate(cell(ws,`A${r}`));
-  if(!date)continue;
-  const hours=calculateHoursFromRow(ws,r);
-  entries.push({
-    date,
-    dayType:String(cell(ws,`B${r}`)||''),
-    service:hours.service,
-    normal:hours.normal,
-    h25:hours.h25,
-    h125:hours.h125,
-    h1375:hours.h1375,
-    h150:hours.h150,
-    h165:hours.h165
-  });
+  const date=excelDate(cell(ws,`A${r}`));if(!date)continue;
+  let normal=hourValue(cell(ws,`I${r}`)),h25=hourValue(cell(ws,`J${r}`)),h125=hourValue(cell(ws,`K${r}`)),h1375=hourValue(cell(ws,`L${r}`)),h150=hourValue(cell(ws,`M${r}`)),h165=hourValue(cell(ws,`N${r}`));
+  if(normal+h25+h125+h1375+h150+h165===0){
+   const calc=calculateHoursFromRow(ws,r);({normal,h25,h125,h1375,h150,h165}=calc);
+  }
+  entries.push({date,dayType:String(cell(ws,`B${r}`)||''),normal,h25,h125,h1375,h150,h165});
  }
  if(!entries.length)throw new Error('Não foram encontradas datas nas linhas 15 a 22.');
  const dataInicial=entries.map(x=>x.date).sort()[0],dataFinal=entries.map(x=>x.date).sort().at(-1);
  const cliente=String(cell(ws,'C10')||'').trim(),local=String(cell(ws,'I10')||'').trim(),processo=String(cell(ws,'M10')||'').trim();
  const diasAjuda=num(cell(ws,'J26')),diasAloj=num(cell(ws,'J27'));
- const totals=entries.reduce((a,x)=>{for(const k of ['normal','h25','h125','h1375','h150','h165'])a[k]+=x[k];return a},{normal:0,h25:0,h125:0,h1375:0,h150:0,h165:0});
+ const summed=entries.reduce((a,x)=>{for(const k of ['normal','h25','h125','h1375','h150','h165'])a[k]+=num(x[k]);return a},{normal:0,h25:0,h125:0,h1375:0,h150:0,h165:0});
+ const official={normal:hourValue(cell(ws,'I23')),h25:hourValue(cell(ws,'J23')),h125:hourValue(cell(ws,'K23')),h1375:hourValue(cell(ws,'L23')),h150:hourValue(cell(ws,'M23')),h165:hourValue(cell(ws,'N23'))};
+ const totals=Object.values(official).some(v=>num(v)!==0)?official:summed;
  const compGerada=entries.reduce((a,x)=>{const t=norm(x.dayType);return a+(t.includes('domingo')?1:(t.includes('sabado')||t.includes('feriado')?.5:0))},0);
- return {id:uid(),name:file.name,hash,cliente,local,processo,dataInicial,dataFinal,entries,...totals,diasAjuda,diasAloj,ajudaUnit:db.settings.ajudaDia,alojUnit:db.settings.alojDia,compGerada,compConta:dataFinal>db.settings.dataCorte?compGerada:0,hoursVersion:2,imported:new Date().toISOString()};
+ return {id:uid(),name:file.name,hash,cliente,local,processo,dataInicial,dataFinal,entries,...totals,diasAjuda,diasAloj,ajudaUnit:db.settings.ajudaDia,alojUnit:db.settings.alojDia,compGerada,compConta:dataFinal>db.settings.dataCorte?compGerada:0,hoursVersion:3,originalKey:'sheet-'+hash,imported:new Date().toISOString(),_file:file};
 }
 function overtimeValue(g){const s=db.settings;return s.valorHora*(num(g.h25)*s.m25+num(g.h125)*s.m125+num(g.h1375)*s.m1375+num(g.h150)*s.m150+num(g.h165)*s.m165)}
 function irs2026(R){R=Math.max(0,num(R));let t=0,a=0;if(R<=920){}else if(R<=1042){t=.125;a=.125*2.6*(1273.85-R)}else if(R<=1108){t=.157;a=.157*1.35*(1554.83-R)}else if(R<=1154){t=.157;a=94.71}else if(R<=1212){t=.212;a=158.18}else if(R<=1819){t=.241;a=193.33}else if(R<=2119){t=.311;a=320.66}else if(R<=2499){t=.349;a=401.19}else if(R<=3305){t=.3836;a=487.66}else if(R<=5547){t=.3969;a=531.62}else if(R<=20221){t=.4495;a=823.4}else{t=.4717;a=1272.31}const v=Math.max(0,R*t-a);return{value:v,effective:R?v/R:0}}
@@ -209,7 +210,7 @@ function renderAnnual(){
  }
  $('annualTable').innerHTML=h;
 }
-function renderSheets(){const q=norm($('sheetSearch').value);let h='<tr><th>Ficheiro</th><th>Período</th><th>Cliente</th><th>Local</th><th>100%</th><th>Extra</th><th>Ajudas</th><th>Aloj.</th><th></th></tr>';for(const s of [...db.sheets].sort((a,b)=>b.dataFinal.localeCompare(a.dataFinal))){if(q&&!norm(`${s.name} ${s.cliente} ${s.local} ${s.processo}`).includes(q))continue;const ex=num(s.h25)+num(s.h125)+num(s.h1375)+num(s.h150)+num(s.h165);h+=`<tr><td>${s.name}</td><td>${s.dataInicial}<br>${s.dataFinal}</td><td>${s.cliente}</td><td>${s.local}</td><td>${fmt(s.normal)} h</td><td>${fmt(ex)} h</td><td>${fmt(s.diasAjuda)} dias</td><td>${fmt(s.diasAloj)} dias</td><td><button onclick="removeSheet('${s.id}')">Apagar</button></td></tr>`}$('sheetsTable').innerHTML=h}
+function renderSheets(){const q=norm($('sheetSearch').value);let h='<tr><th>Ficheiro</th><th>Período</th><th>Cliente</th><th>Local</th><th>100%</th><th>Extra</th><th>Ajudas</th><th>Aloj.</th><th></th></tr>';for(const s of [...db.sheets].sort((a,b)=>b.dataFinal.localeCompare(a.dataFinal))){if(q&&!norm(`${s.name} ${s.cliente} ${s.local} ${s.processo}`).includes(q))continue;const ex=num(s.h25)+num(s.h125)+num(s.h1375)+num(s.h150)+num(s.h165);h+=`<tr><td>${s.name}</td><td>${s.dataInicial}<br>${s.dataFinal}</td><td>${s.cliente}</td><td>${s.local}</td><td>${fmt(s.normal)} h</td><td>${fmt(ex)} h</td><td>${fmt(s.diasAjuda)} dias</td><td>${fmt(s.diasAloj)} dias</td><td>${s.originalKey?`<button onclick="downloadStoredFile('${s.originalKey}','${String(s.name).replace(/'/g,"&#39;")}')">Abrir original</button> `:''}<button onclick="removeSheet('${s.id}')">Apagar</button></td></tr>`}$('sheetsTable').innerHTML=h}
 function renderPayments(){const years=[...new Set(allMonths().map(m=>m.slice(0,4)))].sort().reverse(),sel=$('payYear').value||years[0]||String(new Date().getFullYear());$('payYear').innerHTML=years.map(y=>`<option ${y===sel?'selected':''}>${y}</option>`).join('');let sums={net:0,travel:0,lodging:0,meal:0},h='<tr><th>Mês</th><th>Bruto</th><th>SS</th><th>IRS</th><th>Líquido recibo</th><th>Ajudas</th><th>Alojamento</th><th>Subs. refeição</th><th>Recibo</th></tr>';for(const m of allMonths().filter(x=>x.startsWith(sel)).reverse()){const p=salaryMonth(m),receipt=db.receipts.find(r=>r.month===m);sums.net+=p.net;sums.travel+=p.travel;sums.lodging+=p.lodging;sums.meal+=mealDays(m)*db.settings.refeicaoDia;h+=`<tr><td>${m}</td><td>${euro(p.gross)}</td><td>- ${euro(p.ss)}</td><td>- ${euro(p.irs)}</td><td><strong>${euro(p.net)}</strong></td><td>${euro(p.travel)}</td><td>${euro(p.lodging)}</td><td>${euro(mealDays(m)*db.settings.refeicaoDia)}</td><td>${receipt?'✅':'⚠️ falta'}</td></tr>`}$('yearNet').textContent=euro(sums.net);$('yearTravel').textContent=euro(sums.travel);$('yearLodging').textContent=euro(sums.lodging);$('yearMeal').textContent=euro(sums.meal);$('paymentsTable').innerHTML=h}
 function latestSheetMonth(){
  const months=db.sheets.flatMap(s=>Array.isArray(s.entries)&&s.entries.length?s.entries.map(e=>monthOf(e.date)):[monthOf(s.dataFinal)]).filter(Boolean).sort();
@@ -274,19 +275,85 @@ function renderLocations(){
  const rows=locations.filter(x=>(!source||x.source===source)&&(!q||norm(`${x.name} ${x.address} ${x.source}`).includes(q))).slice(0,100);
  $('locationResults').innerHTML=rows.map(x=>`<article class="locationCard"><h3>${x.name}</h3><p><strong>${x.source}</strong></p><p>${x.address||'Sem morada'}</p>${x.lat&&x.lon?`<p>${x.lat.toFixed(6)}, ${x.lon.toFixed(6)}</p><div class="locationActions"><a target="_blank" href="https://www.google.com/maps/search/?api=1&query=${x.lat},${x.lon}"><button>Google Maps</button></a><button type="button" onclick="openWaze(${x.lat},${x.lon})">Waze</button></div>`:'<p>Coordenadas não disponíveis</p>'}</article>`).join('')||'<p>Sem resultados.</p>';
 }
-function renderReceipts(){let h='<tr><th>Mês</th><th>Ficheiro</th><th>Formato</th><th>Líquido registado</th><th>Diferença estimativa</th><th></th></tr>';for(const r of [...db.receipts].sort((a,b)=>b.month.localeCompare(a.month))){const diff=r.net?num(r.net)-salaryMonth(r.month).net:null;h+=`<tr><td>${r.month}</td><td>${r.name}</td><td>${r.type}</td><td>${r.net?euro(r.net):'—'}</td><td>${diff===null?'—':euro(diff)}</td><td><button onclick="openReceipt('${r.id}')">Abrir</button> <button onclick="removeReceipt('${r.id}')">Apagar</button></td></tr>`}$('receiptsTable').innerHTML=h}
+
+function parsePtNumber(s){return num(String(s||'').replace(/\s/g,''))}
+function monthNameToNumber(name){const m={janeiro:'01',fevereiro:'02',marco:'03',março:'03',abril:'04',maio:'05',junho:'06',julho:'07',agosto:'08',setembro:'09',outubro:'10',novembro:'11',dezembro:'12'};return m[norm(name)]||''}
+function parseReceiptText(text){
+ const clean=text.replace(/\u00a0/g,' ').replace(/[ \t]+/g,' ');
+ const mm=clean.match(/\b(janeiro|fevereiro|março|marco|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)\s+(20\d{2})\b/i);
+ const month=mm?`${mm[2]}-${monthNameToNumber(mm[1])}`:'';
+ const line=(label)=>{const i=norm(clean).indexOf(norm(label));return i<0?'':clean.slice(i,i+180)};
+ const money=(s)=>[...s.matchAll(/(\d{1,3}(?:[.\s]\d{3})*|\d+)[,.](\d{2})\s*€/g)].map(m=>parsePtNumber(m[0]));
+ const baseVals=money(line('Ordenado Base')),base=baseVals.at(-1)??null;
+ const extraPart=line('Hora Extra'),extraNums=[...extraPart.matchAll(/(\d+(?:[,.]\d+)?)/g)].map(m=>parsePtNumber(m[1]));
+ const extraMoney=money(extraPart),extraHours=extraNums.length?extraNums[0]:null,extraValue=extraMoney.at(-1)??null;
+ const ssVals=money(line('Segurança Social')),ss=ssVals.at(-1)??null;
+ const irsParts=[...clean.matchAll(/Imposto\s*S\/Rendimento[\s\S]{0,120}?(\d+(?:[,.]\d{2}))\s*€/gi)].map(m=>parsePtNumber(m[1]));
+ const irs=irsParts.length?irsParts.reduce((a,b)=>a+b,0):null;
+ const amounts=money(clean);let subject=null,discounts=null,net=null;
+ for(const a of amounts)for(const b of amounts)for(const c of amounts)if(a>b&&Math.abs(a-b-c)<.02){subject=a;discounts=b;net=c}
+ return {month,base,extraHours,extraValue,ss,irs,subject,discounts,net,text:clean};
+}
+async function extractReceipt(file){
+ $('receiptProgress').textContent='A ler o recibo automaticamente…';let text='';
+ if(file.type==='application/pdf'||file.name.toLowerCase().endsWith('.pdf')){
+  const pdfjs=await import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs');
+  pdfjs.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs';
+  const pdf=await pdfjs.getDocument({data:await file.arrayBuffer()}).promise;
+  for(let p=1;p<=pdf.numPages;p++){const page=await pdf.getPage(p),content=await page.getTextContent();text+=' '+content.items.map(x=>x.str).join(' ')}
+ }else{
+  const result=await Tesseract.recognize(file,'por',{logger:m=>{$('receiptProgress').textContent=m.status==='recognizing text'?`A ler fotografia: ${Math.round((m.progress||0)*100)}%`:'A preparar leitura…'}});
+  text=result.data.text;
+ }
+ $('receiptProgress').textContent='';return parseReceiptText(text);
+}
+function comparisonRows(receipt){
+ const p=salaryMonth(receipt.month),expectedExtra=p.h25+p.h125+p.h1375+p.h150+p.h165;
+ return [
+  {label:'Horas extra',expected:expectedExtra,actual:receipt.extraHours,unit:'h'},
+  {label:'Ordenado base',expected:db.settings.salarioBase,actual:receipt.base,unit:'€'},
+  {label:'Valor horas extra',expected:p.grossHours,actual:receipt.extraValue,unit:'€'},
+  {label:'Segurança Social',expected:p.ss,actual:receipt.ss,unit:'€'},
+  {label:'IRS',expected:p.irs,actual:receipt.irs,unit:'€'},
+  {label:'Líquido do recibo',expected:p.net,actual:receipt.net,unit:'€'}
+ ].map(x=>({...x,diff:x.actual==null?null:x.actual-x.expected,ok:x.actual!=null&&Math.abs(x.actual-x.expected)<(x.unit==='h'?.01:.05)}));
+}
+
+function renderReceipts(){
+ let h='<tr><th>Mês</th><th>Ficheiro</th><th>Horas extra</th><th>Líquido</th><th>Resultado</th><th></th></tr>';
+ for(const r of [...db.receipts].sort((a,b)=>b.month.localeCompare(a.month))){
+  const comp=r.parsed?comparisonRows(r.parsed):[],issues=comp.filter(x=>!x.ok).length;
+  h+=`<tr><td>${r.month||'—'}</td><td>${r.name}</td><td>${r.parsed?.extraHours??'—'}</td><td>${r.parsed?.net!=null?euro(r.parsed.net):'—'}</td><td>${r.parsed?(issues?`⚠️ ${issues} diferenças`:'✅ OK'):'Manual'}</td><td><button onclick="openReceipt('${r.id}')">Abrir</button> <button onclick="showReceiptComparison('${r.id}')">Comparar</button> <button onclick="removeReceipt('${r.id}')">Apagar</button></td></tr>`;
+ }
+ $('receiptsTable').innerHTML=h;const latest=[...db.receipts].sort((a,b)=>b.month.localeCompare(a.month))[0];if(latest)showReceiptComparison(latest.id,false);else $('receiptComparison').innerHTML='<p class="hint">Importa um recibo para comparar.</p>';
+}
+window.showReceiptComparison=function(id,scroll=true){
+ const r=db.receipts.find(x=>x.id===id);if(!r?.parsed){$('receiptComparison').innerHTML='<p class="hint">Este recibo não foi lido automaticamente.</p>';return}
+ let h='<table><tr><th>Campo</th><th>Calculado pelas folhas</th><th>Recibo</th><th>Diferença</th><th>Estado</th></tr>';
+ for(const x of comparisonRows(r.parsed)){const f=v=>x.unit==='€'?euro(v):`${fmt(v)} h`;h+=`<tr><td>${x.label}</td><td>${f(x.expected)}</td><td>${x.actual==null?'Não encontrado':f(x.actual)}</td><td>${x.diff==null?'—':f(x.diff)}</td><td>${x.ok?'✅':'⚠️'}</td></tr>`}
+ h+='</table>';$('receiptComparison').innerHTML=h;if(scroll)$('receiptComparison').scrollIntoView({behavior:'smooth'});
+}
 function renderSettings(){for(const el of $('settingsForm').elements)if(el.name)el.value=db.settings[el.name]??''}
 function render(){renderDashboard();renderSheets();renderPayments();renderClients();renderExpenses();renderLeave();renderLocations();renderReceipts();renderSettings()}
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab,.panel').forEach(x=>x.classList.remove('active'));b.classList.add('active');$(b.dataset.tab).classList.add('active')});
 $('fileInput').onchange=async e=>{if(!window.XLSX){message('Não foi possível carregar o leitor de Excel. Confirma a ligação à Internet.','err');return}pendingImports=[];for(const f of [...e.target.files]){try{if(db.sheets.some(s=>s.name.toLowerCase()===f.name.toLowerCase()))throw new Error('já existe um ficheiro com este nome');const buffer=await f.arrayBuffer(),hash=await hashBuffer(buffer);if(db.sheets.some(s=>s.hash===hash))throw new Error('conteúdo já importado');const item=parseTimesheet(f,buffer,hash);if(isClosed(monthOf(item.dataFinal)))throw new Error('o mês está fechado');pendingImports.push(item)}catch(err){message(`${f.name}: ${err.message}`,'err')}}showImportPreview();e.target.value=''};
-function showImportPreview(){if(!pendingImports.length)return;const box=$('importPreview');box.innerHTML=`<h2>Confirmar importação</h2>${pendingImports.map(x=>`<div class="previewItem"><strong>${x.name}</strong><br>${x.cliente} · ${x.local}<br>${x.dataInicial} a ${x.dataFinal}<br>Normais: ${fmt(x.normal)} h · Extra: ${fmt(x.h25+x.h125+x.h1375+x.h150+x.h165)} h · Ajuda: ${x.diasAjuda} dias · Alojamento: ${x.diasAloj} dias</div>`).join('')}<div class="toolbar"><button id="confirmImport">Confirmar</button><button id="cancelImport">Cancelar</button></div>`;box.classList.remove('hidden');$('confirmImport').onclick=()=>{db.sheets.push(...pendingImports);pendingImports=[];box.classList.add('hidden');save();message('Folhas importadas.','ok')};$('cancelImport').onclick=()=>{pendingImports=[];box.classList.add('hidden')}}
+function showImportPreview(){if(!pendingImports.length)return;const box=$('importPreview');box.innerHTML=`<h2>Confirmar importação</h2>${pendingImports.map(x=>`<div class="previewItem"><strong>${x.name}</strong><br>${x.cliente} · ${x.local}<br>${x.dataInicial} a ${x.dataFinal}<br>Normais: ${fmt(x.normal)} h · Extra: ${fmt(x.h25+x.h125+x.h1375+x.h150+x.h165)} h · Ajuda: ${x.diasAjuda} dias · Alojamento: ${x.diasAloj} dias</div>`).join('')}<div class="toolbar"><button id="confirmImport">Confirmar</button><button id="cancelImport">Cancelar</button></div>`;box.classList.remove('hidden');$('confirmImport').onclick=async()=>{for(const item of pendingImports){if(item._file)await storeFile(item.originalKey,item._file);delete item._file;db.sheets.push(item)}pendingImports=[];box.classList.add('hidden');save();message('Folhas importadas e originais arquivados.','ok')};$('cancelImport').onclick=()=>{pendingImports=[];box.classList.add('hidden')}}
 $('expenseForm').onsubmit=e=>{e.preventDefault();if($('expenseDate').value<db.settings.inicioDespesas){alert(`Só são aceites despesas a partir de ${db.settings.inicioDespesas}.`);return}if(isClosed(monthOf($('expenseDate').value))){alert('Este mês está fechado.');return}const existing=db.expenses.find(x=>x.date===$('expenseDate').value),obj={id:existing?.id||uid(),date:$('expenseDate').value,food:num($('expenseFood').value),sleep:num($('expenseSleep').value),note:$('expenseNote').value};existing?Object.assign(existing,obj):db.expenses.push(obj);save();$('expenseFood').value=0;$('expenseSleep').value=0;$('expenseNote').value=''}
 $('leaveForm').onsubmit=e=>{e.preventDefault();const obj={id:uid(),type:$('leaveType').value,date:$('leaveStart').value,endDate:$('leaveEnd').value,days:num($('leaveDays').value),desc:$('leaveNote').value};db.used.push(obj);save()}
 function workingDays(a,b){let n=0;if(!a||!b)return n;for(let d=new Date(a+'T12:00:00'),end=new Date(b+'T12:00:00');d<=end;d.setDate(d.getDate()+1))if(d.getDay()!==0&&d.getDay()!==6)n++;return n}
 $('leaveStart').onchange=()=>{if(!$('leaveEnd').value||$('leaveEnd').value<$('leaveStart').value)$('leaveEnd').value=$('leaveStart').value;$('leaveDays').value=workingDays($('leaveStart').value,$('leaveEnd').value)};$('leaveEnd').onchange=()=>$('leaveDays').value=workingDays($('leaveStart').value,$('leaveEnd').value);
-$('receiptForm').onsubmit=async e=>{e.preventDefault();const f=$('receiptFile').files[0];if(!f)return;if(f.size>4*1024*1024&&!confirm('O ficheiro é grande e pode ocupar bastante espaço. Continuar?'))return;const data=await fileToDataURL(f),obj={id:uid(),month:$('receiptMonth').value,name:f.name,type:f.type||f.name.split('.').pop(),data,net:num($('receiptNet').value)||null,extra:num($('receiptExtra').value)||null};db.receipts=db.receipts.filter(x=>x.month!==obj.month);db.receipts.push(obj);save();$('receiptForm').reset()}
+$('receiptForm').onsubmit=async e=>{
+ e.preventDefault();const f=$('receiptFile').files[0];if(!f)return;
+ try{
+  const parsed=await extractReceipt(f),month=parsed.month||$('receiptMonth').value;if(!month)throw new Error('Não foi possível identificar o mês.');parsed.month=month;
+  if($('receiptNet').value)parsed.net=num($('receiptNet').value);if($('receiptExtra').value)parsed.extraValue=num($('receiptExtra').value);
+  const key='receipt-'+uid();await storeFile(key,f);
+  const obj={id:uid(),month,name:f.name,type:f.type||f.name.split('.').pop(),fileKey:key,parsed};
+  const old=db.receipts.find(x=>x.month===month);if(old?.fileKey)await deleteStoredFile(old.fileKey);db.receipts=db.receipts.filter(x=>x.month!==month);db.receipts.push(obj);save();$('receiptForm').reset();$('receiptProgress').textContent='Recibo lido e comparado automaticamente.';
+ }catch(err){$('receiptProgress').textContent='Erro: '+err.message}
+}
 function fileToDataURL(f){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(f)})}
-window.openReceipt=id=>{const r=db.receipts.find(x=>x.id===id);if(r)window.open(r.data,'_blank')};window.removeReceipt=id=>{db.receipts=db.receipts.filter(x=>x.id!==id);save()};window.removeSheet=id=>{if(confirm('Apagar esta folha?')){db.sheets=db.sheets.filter(x=>x.id!==id);save()}};window.removeExpense=id=>{db.expenses=db.expenses.filter(x=>x.id!==id);save()};window.removeLeave=id=>{db.used=db.used.filter(x=>x.id!==id);save()};
+window.openReceipt=async id=>{const r=db.receipts.find(x=>x.id===id);if(!r)return;if(r.fileKey){const blob=await getStoredFile(r.fileKey);if(blob)window.open(URL.createObjectURL(blob),'_blank')}else if(r.data)window.open(r.data,'_blank')};window.removeReceipt=async id=>{const r=db.receipts.find(x=>x.id===id);if(r?.fileKey)await deleteStoredFile(r.fileKey);db.receipts=db.receipts.filter(x=>x.id!==id);save()};window.removeSheet=async id=>{if(confirm('Apagar esta folha?')){const s=db.sheets.find(x=>x.id===id);if(s?.originalKey)await deleteStoredFile(s.originalKey);db.sheets=db.sheets.filter(x=>x.id!==id);save()}};window.removeExpense=id=>{db.expenses=db.expenses.filter(x=>x.id!==id);save()};window.removeLeave=id=>{db.used=db.used.filter(x=>x.id!==id);save()};
 $('settingsForm').onsubmit=e=>{e.preventDefault();for(const [k,v] of new FormData(e.target))db.settings[k]=k.includes('data')||k.includes('inicio')?v:num(v);db.sheets.forEach(s=>s.compConta=s.dataFinal>db.settings.dataCorte?s.compGerada:0);save();message('Definições guardadas.','ok')};
 $('backupBtn').onclick=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(db)],{type:'application/json'}));a.download=`controlo_horas_${today()}.json`;a.click();URL.revokeObjectURL(a.href)};
 $('restoreBtn').onclick=()=>$('restoreInput').click();$('restoreInput').onchange=async()=>{try{db={...clone(defaults),...JSON.parse(await $('restoreInput').files[0].text())};save();message('Backup restaurado.','ok')}catch{message('Backup inválido.','err')}};
