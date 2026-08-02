@@ -219,44 +219,48 @@ function latestSheetMonth(){
 function renderClients(){
  const m=$('clientMonth').value||latestSheetMonth(),q=norm($('clientFilter').value),groups={};
  if(!$('clientMonth').value)$('clientMonth').value=m;
+
+ // Na página Clientes, cada folha contribui apenas uma vez com os totais oficiais da folha.
+ // Não somamos novamente as linhas diárias, porque isso podia duplicar ou distorcer as horas.
  for(const s of db.sheets){
-  let matched=false;
-  for(const e of s.entries||[]){
-   if(monthOf(e.date)!==m)continue;
-   matched=true;
-   const key=`${s.cliente||'Sem cliente'}|||${s.local||'Sem local'}`;
-   groups[key]??={client:s.cliente||'Sem cliente',local:s.local||'Sem local',normal:0,h25:0,h125:0,h1375:0,h150:0,h165:0};
-   for(const k of ['normal','h25','h125','h1375','h150','h165'])groups[key][k]+=num(e[k]);
-  }
-  if(!matched&&monthOf(s.dataFinal)===m){
-   const key=`${s.cliente||'Sem cliente'}|||${s.local||'Sem local'}`;
-   groups[key]??={client:s.cliente||'Sem cliente',local:s.local||'Sem local',normal:0,h25:0,h125:0,h1375:0,h150:0,h165:0};
-   for(const k of ['normal','h25','h125','h1375','h150','h165'])groups[key][k]+=num(s[k]);
-  }
+  if(monthOf(s.dataFinal)!==m)continue;
+  const key=`${s.cliente||'Sem cliente'}|||${s.local||'Sem local'}`;
+  groups[key]??={client:s.cliente||'Sem cliente',local:s.local||'Sem local',normal:0,h25:0,h125:0,h1375:0,h150:0,h165:0,folhas:0};
+  for(const k of ['normal','h25','h125','h1375','h150','h165'])groups[key][k]+=num(s[k]);
+  groups[key].folhas++;
  }
- let h='<tr><th>Cliente</th><th>Local</th><th>100%</th><th>25%</th><th>125%</th><th>137,5%</th><th>150%</th><th>165%</th><th>Total extra</th><th>Total geral</th></tr>';
- const rows=Object.values(groups).filter(x=>!q||norm(x.client+' '+x.local).includes(q)).sort((a,b)=>a.client.localeCompare(b.client));
- const total={normal:0,h25:0,h125:0,h1375:0,h150:0,h165:0};
+
+ let h='<tr><th>Cliente</th><th>Local</th><th>Folhas</th><th>100%</th><th>25%</th><th>125%</th><th>137,5%</th><th>150%</th><th>165%</th><th>Total extra</th><th>Total geral</th></tr>';
+ const rows=Object.values(groups)
+  .filter(x=>!q||norm(x.client+' '+x.local).includes(q))
+  .sort((a,b)=>a.client.localeCompare(b.client)||a.local.localeCompare(b.local));
+
+ const total={normal:0,h25:0,h125:0,h1375:0,h150:0,h165:0,folhas:0};
+
  for(const x of rows){
-  const extra=x.h25+x.h125+x.h1375+x.h150+x.h165,totalHours=x.normal+extra;
+  const extra=x.h25+x.h125+x.h1375+x.h150+x.h165;
+  const totalHours=x.normal+extra;
   for(const k of Object.keys(total))total[k]+=num(x[k]);
   h+=`<tr>
-   <td>${x.client}</td><td>${x.local}</td><td><strong>${fmt(x.normal)}</strong></td>
+   <td>${x.client}</td><td>${x.local}</td><td>${x.folhas}</td>
+   <td><strong>${fmt(x.normal)}</strong></td>
    <td>${fmt(x.h25)}</td><td>${fmt(x.h125)}</td><td>${fmt(x.h1375)}</td><td>${fmt(x.h150)}</td><td>${fmt(x.h165)}</td>
    <td><strong>${fmt(extra)}</strong></td><td><strong>${fmt(totalHours)}</strong></td>
   </tr>`;
  }
+
  if(rows.length){
   const totalExtra=total.h25+total.h125+total.h1375+total.h150+total.h165;
   const grand=total.normal+totalExtra;
   h+=`<tr>
-   <th colspan="2">TOTAL DO MÊS</th>
+   <th colspan="2">TOTAL DO MÊS</th><th>${total.folhas}</th>
    <th>${fmt(total.normal)}</th><th>${fmt(total.h25)}</th><th>${fmt(total.h125)}</th><th>${fmt(total.h1375)}</th><th>${fmt(total.h150)}</th><th>${fmt(total.h165)}</th>
    <th>${fmt(totalExtra)}</th><th>${fmt(grand)}</th>
   </tr>`;
  }else{
-  h+=`<tr><td colspan="10">Não existem folhas para ${m}. O último mês com folhas é ${latestSheetMonth()}.</td></tr>`;
+  h+=`<tr><td colspan="11">Não existem folhas para ${m}. O último mês com folhas é ${latestSheetMonth()}.</td></tr>`;
  }
+
  $('clientsTable').innerHTML=h;
 }
 function renderExpenses(){const m=$('expenseMonth').value||currentMonth(),s=expenseSummary(m);$('expenseTravelReceived').textContent=euro(s.travel);$('expenseFoodSpent').textContent=euro(s.food);$('expenseLodgingReceived').textContent=euro(s.lodging);$('expenseSleepSpent').textContent=euro(s.sleep);$('expenseRemain').textContent=euro(s.remain);let h='<tr><th>Data</th><th>Alimentação</th><th>Dormida</th><th>Observação</th><th></th></tr>';for(const x of db.expenses.filter(x=>monthOf(x.date)===m).sort((a,b)=>b.date.localeCompare(a.date))){h+=`<tr><td>${x.date}</td><td>${euro(x.food)}</td><td>${euro(x.sleep)}</td><td>${x.note||''}</td><td><button onclick="removeExpense('${x.id}')">Apagar</button></td></tr>`}$('expensesTable').innerHTML=h}

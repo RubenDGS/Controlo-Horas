@@ -64,3 +64,10 @@ ALTERAÇÕES V3.5
 - Tentativa de leitura de fotografias por OCR.
 - Comparação automática de horas extra, ordenado base, valor das horas extra, Segurança Social, IRS e líquido.
 - O recibo apenas indica o total de horas extra; a separação por percentagens vem das folhas.
+
+
+CORREÇÃO V3.6
+- A página Clientes deixa de somar as linhas diárias.
+- Cada folha é contabilizada apenas uma vez, usando os totais oficiais guardados na própria folha.
+- Evita duplicação de horas extra por cliente/local.
+- Acrescentada coluna com o número de folhas incluídas em cada cliente/local.
