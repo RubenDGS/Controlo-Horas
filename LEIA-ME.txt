@@ -46,3 +46,12 @@ ALTERAÇÕES V3.3
 - Resumo anual apresenta a contagem final de 100%, 25%, 125%, 137,5%, 150% e 165%.
 - Resumo anual inclui Total Extra e Total Geral.
 - Página Clientes usa a mesma terminologia e mantém a linha TOTAL DO MÊS.
+
+
+CORREÇÕES V3.4
+- As horas a 100% deixam de depender do resultado guardado nas fórmulas do Excel.
+- A aplicação calcula as horas diretamente pelas colunas de início/fim, tipo de dia e turno.
+- São aplicadas as mesmas regras da folha para 100%, 25%, 125%, 137,5%, 150% e 165%.
+- O subsídio de refeição exclui todos os dias úteis abrangidos pelo período de uma folha semanal.
+- O cartão identifica explicitamente “dias sem folha”.
+- Para corrigir folhas importadas em versões anteriores, é necessário apagá-las e voltar a importá-las nesta versão, porque os dados antigos não guardaram as horas de início/fim necessárias para recalcular com exatidão.

@@ -42,10 +42,73 @@ function isClosed(m){return db.closedMonths.includes(m)}
 async function hashBuffer(buf){if(crypto?.subtle){const h=await crypto.subtle.digest('SHA-256',buf);return [...new Uint8Array(h)].map(x=>x.toString(16).padStart(2,'0')).join('')}return String(buf.byteLength)}
 function excelDate(v){if(v instanceof Date&&!isNaN(v))return v.toISOString().slice(0,10);if(typeof v==='number'&&window.XLSX){const d=XLSX.SSF.parse_date_code(v);if(d)return `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`}if(typeof v==='string'){const m=v.match(/(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})/);if(m)return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`}return ''}
 function cell(ws,a){return ws[a]?.v??''}
+
+function calculateHoursFromRow(ws,r){
+ const dayType=norm(cell(ws,`B${r}`));
+ const shift=norm(cell(ws,`Q${r}`));
+ let service=hourValue(cell(ws,`P${r}`));
+
+ // Quando a fórmula da coluna P não tem resultado guardado, calcular pelas horas de início/fim.
+ if(!service){
+  const start=cell(ws,`C${r}`),end=cell(ws,`H${r}`);
+  const toHours=v=>{
+   if(v instanceof Date&&!isNaN(v))return v.getHours()+v.getMinutes()/60+v.getSeconds()/3600;
+   if(typeof v==='number')return v*24;
+   if(typeof v==='string'){
+    const m=v.match(/(\d{1,2}):(\d{2})/);
+    if(m)return Number(m[1])+Number(m[2])/60;
+   }
+   return null;
+  };
+  const a=toHours(start),b=toHours(end);
+  if(a!==null&&b!==null){
+   service=b-a;
+   if(service<0)service+=24;
+  }
+ }
+ service=Math.max(0,service);
+
+ const weekend=dayType.includes('sabado')||dayType.includes('feriado');
+ const sunday=dayType.includes('domingo');
+ const night=shift.includes('noturno');
+
+ let normal=0,h25=0,h125=0,h1375=0,h150=0,h165=0;
+ if(night){
+  if(!weekend&&!sunday)h25=Math.min(service,8);
+  if(service>8){
+   h150=service===8.5?.5:1;
+   h165=Math.max(0,service-h25-h150);
+  }
+ }else{
+  if(!weekend&&!sunday)normal=Math.min(service,8);
+  if(!weekend&&!sunday&&service>8){
+   h125=service===8.5?.5:1;
+   h1375=Math.max(0,service-normal-h125);
+  }
+  if(weekend||sunday)h150=service;
+ }
+ return {service,normal,h25,h125,h1375,h150,h165};
+}
+
 function findSheet(wb){return wb.Sheets['MD-RH-04 - Registo de Horas']||wb.Sheets[wb.SheetNames.find(n=>norm(n).includes('registo de horas'))]||wb.Sheets[wb.SheetNames[0]]}
 function parseTimesheet(file,buffer,hash){
  const wb=XLSX.read(buffer,{type:'array',cellDates:true}),ws=findSheet(wb),entries=[];
- for(let r=15;r<=22;r++){const date=excelDate(cell(ws,`A${r}`));if(!date)continue;entries.push({date,dayType:String(cell(ws,`B${r}`)||''),normal:hourValue(cell(ws,`I${r}`)),h25:hourValue(cell(ws,`J${r}`)),h125:hourValue(cell(ws,`K${r}`)),h1375:hourValue(cell(ws,`L${r}`)),h150:hourValue(cell(ws,`M${r}`)),h165:hourValue(cell(ws,`N${r}`))})}
+ for(let r=15;r<=22;r++){
+  const date=excelDate(cell(ws,`A${r}`));
+  if(!date)continue;
+  const hours=calculateHoursFromRow(ws,r);
+  entries.push({
+    date,
+    dayType:String(cell(ws,`B${r}`)||''),
+    service:hours.service,
+    normal:hours.normal,
+    h25:hours.h25,
+    h125:hours.h125,
+    h1375:hours.h1375,
+    h150:hours.h150,
+    h165:hours.h165
+  });
+ }
  if(!entries.length)throw new Error('Não foram encontradas datas nas linhas 15 a 22.');
  const dataInicial=entries.map(x=>x.date).sort()[0],dataFinal=entries.map(x=>x.date).sort().at(-1);
  const cliente=String(cell(ws,'C10')||'').trim(),local=String(cell(ws,'I10')||'').trim(),processo=String(cell(ws,'M10')||'').trim();
@@ -63,7 +126,22 @@ function easterDate(y){const a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4
 function isoLocal(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
 function holidays(y){const fixed=['01-01','04-25','05-01','06-10','08-15','10-05','11-01','12-01','12-08','12-25'].map(x=>`${y}-${x}`);const e=easterDate(y),good=new Date(e);good.setDate(e.getDate()-2);const corpus=new Date(e);corpus.setDate(e.getDate()+60);return new Set([...fixed,isoLocal(good),isoLocal(e),isoLocal(corpus)])}
 function coveredByLeave(date){return db.used.some(x=>date>=x.date&&date<=(x.endDate||x.date))}
-function sheetDates(){const set=new Set();db.sheets.forEach(s=>(s.entries||[]).forEach(e=>set.add(e.date)));return set}
+function sheetDates(){
+ const set=new Set();
+ for(const s of db.sheets){
+  // Dias explicitamente registados.
+  (s.entries||[]).forEach(e=>{if(e.date)set.add(e.date)});
+  // A folha semanal cobre todo o intervalo entre a primeira e a última data.
+  if(s.dataInicial&&s.dataFinal){
+   const start=new Date(s.dataInicial+'T12:00:00'),end=new Date(s.dataFinal+'T12:00:00');
+   for(let d=new Date(start);d<=end;d.setDate(d.getDate()+1)){
+    const dow=d.getDay();
+    if(dow!==0&&dow!==6)set.add(isoLocal(d));
+   }
+  }
+ }
+ return set;
+}
 function mealDays(m){
  if(!m)return 0;
  const [y,mo]=m.split('-').map(Number),monthStart=new Date(y,mo-1,1),now=new Date();
@@ -83,7 +161,7 @@ function balance(){return num(db.settings.saldoInicial)+db.sheets.reduce((a,s)=>
 function expenseSummary(m){const ex=db.expenses.filter(x=>monthOf(x.date)===m),g=monthGroup(m),food=ex.reduce((a,x)=>a+num(x.food),0),sleep=ex.reduce((a,x)=>a+num(x.sleep),0);return{food,sleep,travel:g.travel,lodging:g.lodging,remain:g.travel+g.lodging-food-sleep}}
 function allMonths(){const set=new Set(db.sheets.flatMap(s=>(s.entries||[]).map(e=>monthOf(e.date))).concat(db.payments.map(x=>x.month),db.expenses.map(x=>monthOf(x.date)),db.receipts.map(x=>x.month)));set.add(currentMonth());return [...set].filter(Boolean).sort()}
 function monthStatus(m){const warnings=[];if(!sheetsForMonth(m).length)warnings.push('sem folhas');if(!db.receipts.some(r=>r.month===m))warnings.push('sem recibo');if(m>='2027-01'&&monthGroup(m).travel+monthGroup(m).lodging>0&&!db.expenses.some(x=>monthOf(x.date)===m))warnings.push('sem despesas');const r=db.receipts.find(x=>x.month===m),p=salaryMonth(m);if(r?.net&&Math.abs(num(r.net)-p.net)>5)warnings.push('diferença no recibo');return warnings}
-function renderDashboard(){const m=$('dashMonth').value||currentMonth(),p=salaryMonth(m),e=expenseSummary(m),extra=p.h25+p.h125+p.h1375+p.h150+p.h165,totalHours=p.normal+extra;const allExtra=db.sheets.reduce((a,s)=>a+num(s.h25)+num(s.h125)+num(s.h1375)+num(s.h150)+num(s.h165),0);$('dashNet').textContent=euro(p.net);$('dashH100').textContent=fmt(p.normal)+' h';$('dashH25').textContent=fmt(p.h25)+' h';$('dashH125').textContent=fmt(p.h125)+' h';$('dashH1375').textContent=fmt(p.h1375)+' h';$('dashH150').textContent=fmt(p.h150)+' h';$('dashH165').textContent=fmt(p.h165)+' h';$('dashExtra').textContent=fmt(extra)+' h';$('dashTotalHours').textContent=fmt(totalHours)+' h';$('dashExtraAll').textContent=fmt(allExtra)+' h';const mealCount=mealDays(m);$('dashMeal').textContent=`${euro(mealCount*db.settings.refeicaoDia)} (${mealCount} dias)`;$('dashTravel').textContent=euro(p.travel);$('dashLodging').textContent=euro(p.lodging);$('dashBalance').textContent=fmt(balance())+' dias';$('dashExpenseBalance').textContent=euro(e.remain);const w=monthStatus(m),closed=isClosed(m);$('monthStatus').className='statusBox '+(w.length?'status-warn':'status-ok');$('monthStatus').innerHTML=`<strong>${closed?'🔒 Mês fechado':'🟢 Mês aberto'}</strong>${w.length?' · Falta: '+w.join(', '):' · Registos completos'}`;renderMonthly();renderAnnual()}
+function renderDashboard(){const m=$('dashMonth').value||currentMonth(),p=salaryMonth(m),e=expenseSummary(m),extra=p.h25+p.h125+p.h1375+p.h150+p.h165,totalHours=p.normal+extra;const allExtra=db.sheets.reduce((a,s)=>a+num(s.h25)+num(s.h125)+num(s.h1375)+num(s.h150)+num(s.h165),0);$('dashNet').textContent=euro(p.net);$('dashH100').textContent=fmt(p.normal)+' h';$('dashH25').textContent=fmt(p.h25)+' h';$('dashH125').textContent=fmt(p.h125)+' h';$('dashH1375').textContent=fmt(p.h1375)+' h';$('dashH150').textContent=fmt(p.h150)+' h';$('dashH165').textContent=fmt(p.h165)+' h';$('dashExtra').textContent=fmt(extra)+' h';$('dashTotalHours').textContent=fmt(totalHours)+' h';$('dashExtraAll').textContent=fmt(allExtra)+' h';const mealCount=mealDays(m);$('dashMeal').textContent=`${euro(mealCount*db.settings.refeicaoDia)} (${mealCount} dias sem folha)`;$('dashTravel').textContent=euro(p.travel);$('dashLodging').textContent=euro(p.lodging);$('dashBalance').textContent=fmt(balance())+' dias';$('dashExpenseBalance').textContent=euro(e.remain);const w=monthStatus(m),closed=isClosed(m);$('monthStatus').className='statusBox '+(w.length?'status-warn':'status-ok');$('monthStatus').innerHTML=`<strong>${closed?'🔒 Mês fechado':'🟢 Mês aberto'}</strong>${w.length?' · Falta: '+w.join(', '):' · Registos completos'}`;renderMonthly();renderAnnual()}
 function renderMonthly(){
  let h='<tr><th>Mês</th><th>Líquido recibo</th><th>Horas a 100%</th><th>25%</th><th>125%</th><th>137,5%</th><th>150%</th><th>165%</th><th>Total extra</th><th>Total geral</th><th>Subs. refeição</th><th>Ajudas</th><th>Alojamento</th><th>Estado</th></tr>';
  for(const m of allMonths().reverse()){
