@@ -18,3 +18,12 @@ Nota:
 - Os dados continuam locais a cada dispositivo; não existe ainda sincronização PC/telemóvel.
 - A leitura automática de texto de fotografias/recibos não está incluída. Os ficheiros são arquivados e os valores podem ser introduzidos para comparação.
 - Os feriados nacionais são considerados no cálculo do subsídio de refeição.
+
+
+CORREÇÕES V3.1
+- Subsídio de refeição deixa de contar dias futuros no mês atual e meses futuros.
+- O cartão mostra também o número de dias considerados.
+- Conversão correta das horas dos ficheiros Excel.
+- Migração automática das folhas já importadas com horas guardadas como frações Excel.
+- Clientes abre no último mês com folhas e aceita folhas antigas sem detalhe diário.
+- O botão Waze tenta abrir diretamente a aplicação instalada e só usa o navegador como alternativa.
