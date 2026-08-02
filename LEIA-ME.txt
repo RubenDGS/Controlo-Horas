@@ -1,13 +1,20 @@
-CONTROLO HORAS E COMPENSAÇÕES — VERSÃO 2.0
+CONTROLO HORAS E COMPENSAÇÕES — V3.0 TESTE
 
 Novidades:
-- Dashboard mensal e acumulado
-- Histórico mensal e anual de recebimentos
-- Gráficos de dinheiro recebido e horas extra
-- Resumo por cliente e por local/obra
-- Calendário de trabalho, deslocação, alojamento, férias e compensações
-- Arquivo do Excel original para novas importações (guardado no dispositivo)
-- Conferência experimental de recibos PDF com texto pesquisável
-- Backup e restauro da base de dados
+- Horas normais e extra por cliente e local, mensalmente.
+- Subsídio de refeição de 10,46 € em dias úteis sem folha e sem férias.
+- Despesas diárias de Alimentação e Dormida a partir de 01/01/2027.
+- Cálculo da sobra das ajudas de custo e alojamento.
+- Recibos em PDF, JPG, PNG, WEBP, HEIC e HEIF.
+- Pesquisa de subestações e parques com botões Google Maps e Waze.
+- Validação antes de importar folhas.
+- Avisos de dados em falta e diferenças no recibo.
+- Estado do mês e bloqueio de meses fechados.
+- Pesquisa universal.
+- Exportação mensal por impressão/PDF.
+- Backup e restauro.
 
-Nota: a sincronização automática entre PC e telemóvel exige uma base de dados online e login. Esta versão continua a guardar os dados localmente em cada dispositivo.
+Nota:
+- Os dados continuam locais a cada dispositivo; não existe ainda sincronização PC/telemóvel.
+- A leitura automática de texto de fotografias/recibos não está incluída. Os ficheiros são arquivados e os valores podem ser introduzidos para comparação.
+- Os feriados nacionais são considerados no cálculo do subsídio de refeição.

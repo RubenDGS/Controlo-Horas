@@ -16,170 +16,157 @@
     <img class="brandLogo" src="logotipo.png" alt="Logótipo">
     <div class="brandText">
       <h1>Controlo Horas e Compensações</h1>
-      <p>Horas, recebimentos, férias e compensações num só lugar</p>
+      <p>Horas, pagamentos, deslocações e banco de dias</p>
     </div>
   </div>
   <div class="headerActions">
-    <button id="backupBtn">Criar backup</button>
-    <button id="installAppBtn" type="button" hidden>📲 Instalar aplicação</button>
+    <button id="installBtn" hidden>📲 Instalar</button>
+    <button id="backupBtn">💾 Backup</button>
   </div>
 </header>
 
-<nav>
-  <button class="tab active" data-tab="resumo">Dashboard</button>
+<nav id="mainNav">
+  <button class="tab active" data-tab="dashboard">Dashboard</button>
   <button class="tab" data-tab="folhas">Folhas</button>
   <button class="tab" data-tab="recebimentos">Recebimentos</button>
-  <button class="tab" data-tab="analises">Análises</button>
-  <button class="tab" data-tab="calendario">Calendário</button>
-  <button class="tab" data-tab="conferencia">Conferir recibo</button>
-  <button class="tab" data-tab="compensacoes">Compensações</button>
+  <button class="tab" data-tab="clientes">Clientes</button>
+  <button class="tab" data-tab="despesas">Despesas</button>
+  <button class="tab" data-tab="compensacoes">Férias/Comp.</button>
+  <button class="tab" data-tab="locais">Locais</button>
+  <button class="tab" data-tab="recibos">Recibos</button>
   <button class="tab" data-tab="definicoes">Definições</button>
 </nav>
 
-<div id="connectionStatus" class="connectionStatus" aria-live="polite"></div>
+<div id="connectionStatus"></div>
 <main>
-<section id="resumo" class="panel active">
-  <div class="dashboardHeader"><label>Mês do dashboard <input id="dashMonth" type="month"></label></div>
-  <div class="cards">
-    <article><span>Líquido do recibo no mês</span><strong id="dashNetCard">0,00 €</strong></article>
-    <article><span>Horas extra no mês</span><strong id="dashHoursMonthCard">0 h</strong></article>
-    <article><span>Ajudas de custo no mês</span><strong id="dashTravelCard">0,00 €</strong></article>
-    <article><span>Alojamento no mês</span><strong id="dashLodgingCard">0,00 €</strong></article>
-    <article><span>Saldo férias/compensações</span><strong id="saldoCard">41 dias</strong></article>
-    <article><span>Horas extra acumuladas</span><strong id="horasCard">0 h</strong></article>
-    <article><span>Ajudas acumuladas</span><strong id="ajudasCard">0,00 €</strong></article>
-    <article><span>Alojamento acumulado</span><strong id="alojCard">0,00 €</strong></article>
+<section id="dashboard" class="panel active">
+  <div class="toolbar dashboardTools">
+    <label>Mês <input id="dashMonth" type="month"></label>
+    <input id="globalSearch" placeholder="Pesquisar cliente, local, mês, folha ou subestação">
+    <button id="printMonthBtn">🖨️ Exportar mês</button>
   </div>
-
+  <div id="monthStatus" class="statusBox"></div>
+  <div class="cards">
+    <article><span>Líquido do recibo</span><strong id="dashNet">0,00 €</strong></article>
+    <article><span>Horas extra do mês</span><strong id="dashExtra">0 h</strong></article>
+    <article><span>Horas extra acumuladas</span><strong id="dashExtraAll">0 h</strong></article>
+    <article><span>Subsídio de refeição</span><strong id="dashMeal">0,00 €</strong></article>
+    <article><span>Ajudas de custo</span><strong id="dashTravel">0,00 €</strong></article>
+    <article><span>Alojamento</span><strong id="dashLodging">0,00 €</strong></article>
+    <article><span>Saldo férias/comp.</span><strong id="dashBalance">0 dias</strong></article>
+    <article><span>Sobra das deslocações</span><strong id="dashExpenseBalance">0,00 €</strong></article>
+  </div>
   <div class="toolbar">
-    <label class="fileBtn">Importar folhas
-      <input id="fileInput" type="file" accept=".xlsx,.xlsm" multiple>
-    </label>
+    <label class="fileBtn">Importar folhas Excel<input id="fileInput" type="file" accept=".xlsx,.xlsm" multiple></label>
+    <button id="closeMonthBtn">🔒 Fechar mês</button>
+    <button id="reopenMonthBtn">🔓 Reabrir mês</button>
     <button id="restoreBtn">Restaurar backup</button>
     <input id="restoreInput" type="file" accept=".json" hidden>
   </div>
-
   <div id="messages"></div>
-
+  <div id="importPreview" class="modal hidden"></div>
   <h2>Resumo mensal</h2>
-  <p class="hint">Ordenado e horas ficam separados das ajudas de custo e do alojamento.</p>
   <div class="tableWrap"><table id="monthlyTable"></table></div>
-
   <h2>Resumo anual</h2>
   <div class="tableWrap"><table id="annualTable"></table></div>
 </section>
 
 <section id="folhas" class="panel">
-  <div class="toolbar">
-    <input id="search" placeholder="Pesquisar cliente, local, processo, mês, ano ou ficheiro">
-  </div>
+  <div class="toolbar"><input id="sheetSearch" placeholder="Pesquisar folha, cliente, local ou processo"></div>
   <div class="tableWrap"><table id="sheetsTable"></table></div>
 </section>
 
 <section id="recebimentos" class="panel">
-<p class="note"><strong>Cálculo automático:</strong> salário bruto e horas extra sujeitos a Segurança Social e IRS. Configuração atual: não casado, sem dependentes, Continente. Ajudas de custo e alojamento permanecem separados e sem descontos.</p>
-<h2>Recibo de vencimento</h2>
-<div class="cards miniCards">
-<article><span>Bruto sujeito</span><strong id="grossAutoCard">0,00 €</strong></article>
-<article><span>Segurança Social</span><strong id="ssAutoCard">0,00 €</strong></article>
-<article><span>IRS</span><strong id="irsAutoCard">0,00 €</strong></article>
-<article><span>Líquido do recibo</span><strong id="monthAutoCard">0,00 €</strong></article>
-</div>
-<h2>Ajudas pagas à parte</h2>
-<div class="cards miniCards">
-<article><span>Ajudas de custo</span><strong id="ajudaAutoCard">0,00 €</strong></article>
-<article><span>Alojamento</span><strong id="alojAutoCard">0,00 €</strong></article>
-<article><span>Total ajudas + alojamento</span><strong id="expensesAutoCard">0,00 €</strong></article>
-</div>
-<form id="payForm" class="formGrid">
-<label>Mês<input id="payMonth" type="month" required></label>
-<label>Correção do líquido do recibo (€)<input id="paySalary" type="number" min="0" step="0.01" placeholder="Vazio = automático"></label>
-<label>Correção das horas extra brutas (€)<input id="payHours" type="number" min="0" step="0.01" placeholder="Vazio = automático"></label>
-<button>Guardar correção</button>
-</form>
-<h2>Histórico de recebimentos</h2>
-<div class="historyControls">
-  <label>Ano
-    <select id="payYearFilter"></select>
-  </label>
-</div>
-<div class="cards miniCards historyCards">
-  <article><span>Total líquido dos recibos</span><strong id="yearNetCard">0,00 €</strong></article>
-  <article><span>Total ajudas de custo</span><strong id="yearTravelCard">0,00 €</strong></article>
-  <article><span>Total alojamento</span><strong id="yearLodgingCard">0,00 €</strong></article>
-  <article><span>Total global do ano</span><strong id="yearGlobalCard">0,00 €</strong></article>
-</div>
-<p class="hint">O líquido do recibo aparece separado das ajudas de custo e do alojamento. O total global serve apenas como resumo do dinheiro recebido no mês.</p>
-<div class="tableWrap"><table id="payTable"></table></div>
+  <p class="note">O líquido do recibo aparece separado das ajudas de custo, alojamento e subsídio de refeição.</p>
+  <div class="toolbar"><label>Ano <select id="payYear"></select></label></div>
+  <div class="cards">
+    <article><span>Líquido dos recibos</span><strong id="yearNet">0,00 €</strong></article>
+    <article><span>Ajudas de custo</span><strong id="yearTravel">0,00 €</strong></article>
+    <article><span>Alojamento</span><strong id="yearLodging">0,00 €</strong></article>
+    <article><span>Subsídio de refeição</span><strong id="yearMeal">0,00 €</strong></article>
+  </div>
+  <div class="tableWrap"><table id="paymentsTable"></table></div>
 </section>
 
-
-<section id="analises" class="panel">
-  <h2>Análises e evolução</h2>
-  <div class="formGrid compact"><label>Ano<select id="analysisYear"></select></label><label>Agrupar por<select id="analysisGroup"><option value="cliente">Cliente</option><option value="local">Local/obra</option></select></label></div>
-  <div class="chartBox"><canvas id="moneyChart" height="240"></canvas></div>
-  <div class="chartBox"><canvas id="hoursChart" height="240"></canvas></div>
-  <h2>Resumo por cliente ou local</h2><div class="tableWrap"><table id="groupTable"></table></div>
-  <h2>Resumo anual completo</h2><div class="tableWrap"><table id="fullAnnualTable"></table></div>
+<section id="clientes" class="panel">
+  <div class="toolbar">
+    <label>Mês <input id="clientMonth" type="month"></label>
+    <input id="clientFilter" placeholder="Filtrar cliente ou local">
+  </div>
+  <p class="hint">Horas normais e horas extra são somadas a partir das linhas diárias de cada folha.</p>
+  <div class="tableWrap"><table id="clientsTable"></table></div>
 </section>
 
-<section id="calendario" class="panel">
-  <h2>Calendário de atividade</h2>
-  <div class="formGrid compact"><label>Mês<input id="calendarMonth" type="month"></label></div>
-  <div class="calendarLegend"><span>🟢 Trabalho</span><span>🔵 Deslocação</span><span>🟠 Alojamento</span><span>🔴 Férias</span><span>🟣 Compensação</span></div>
-  <div id="calendarGrid" class="calendarGrid"></div>
-  <div id="calendarDetail" class="note">Seleciona um dia para ver o detalhe.</div>
-</section>
-
-<section id="conferencia" class="panel">
-  <h2>Conferência automática do recibo</h2>
-  <p class="note">Carrega o recibo em PDF. A aplicação tenta ler o texto e comparar o líquido, horas extra, Segurança Social e IRS com os valores calculados. Confirma sempre visualmente, porque alguns PDFs são imagens e podem não permitir leitura automática.</p>
-  <div class="formGrid compact"><label>Mês a conferir<input id="receiptMonth" type="month"></label><label>Recibo PDF<input id="receiptFile" type="file" accept="application/pdf"></label></div>
-  <button id="checkReceiptBtn" type="button">Analisar recibo</button>
-  <div id="receiptResult"></div>
+<section id="despesas" class="panel">
+  <p class="note">Registo disponível para datas a partir de 01/01/2027. Indica apenas o total diário de alimentação e de dormida.</p>
+  <form id="expenseForm" class="formGrid">
+    <label>Data<input id="expenseDate" type="date" required></label>
+    <label>Alimentação (€)<input id="expenseFood" type="number" min="0" step="0.01" value="0"></label>
+    <label>Dormida (€)<input id="expenseSleep" type="number" min="0" step="0.01" value="0"></label>
+    <label>Observação<input id="expenseNote"></label>
+    <button>Guardar despesa</button>
+  </form>
+  <div class="toolbar"><label>Mês <input id="expenseMonth" type="month"></label></div>
+  <div class="cards">
+    <article><span>Ajuda recebida</span><strong id="expenseTravelReceived">0,00 €</strong></article>
+    <article><span>Gasto alimentação</span><strong id="expenseFoodSpent">0,00 €</strong></article>
+    <article><span>Alojamento recebido</span><strong id="expenseLodgingReceived">0,00 €</strong></article>
+    <article><span>Gasto dormida</span><strong id="expenseSleepSpent">0,00 €</strong></article>
+    <article><span>Sobra total</span><strong id="expenseRemain">0,00 €</strong></article>
+  </div>
+  <div class="tableWrap"><table id="expensesTable"></table></div>
 </section>
 
 <section id="compensacoes" class="panel">
-  <div class="cards miniCards">
-    <article><span>Saldo total disponível</span><strong id="saldoFeriasCard">0 dias</strong></article>
-    <article><span>Férias anuais já acrescentadas</span><strong id="feriasAnuaisCard">0 dias</strong></article>
-    <article><span>Dias utilizados</span><strong id="diasUsadosCard">0 dias</strong></article>
+  <div class="cards">
+    <article><span>Saldo disponível</span><strong id="balanceCard">0 dias</strong></article>
+    <article><span>Férias anuais acrescentadas</span><strong id="annualLeaveCard">0 dias</strong></article>
+    <article><span>Dias utilizados</span><strong id="usedDaysCard">0 dias</strong></article>
   </div>
-
-  <p class="note">Férias e dias de compensação ficam todos no mesmo saldo. Em 1 de janeiro de cada ano, a aplicação acrescenta automaticamente os dias anuais configurados.</p>
-
-  <form id="usedForm" class="formGrid">
-    <label>Tipo
-      <select id="usedType">
-        <option value="Férias">Férias</option>
-        <option value="Folga">Folga</option>
-        <option value="Compensação">Compensação</option>
-        <option value="Outro">Outro</option>
-      </select>
-    </label>
-    <label>Data inicial<input id="usedDate" type="date" required></label>
-    <label>Data final<input id="usedEndDate" type="date" required></label>
-    <label>Dias a descontar<input id="usedDays" type="number" min="0.5" step="0.5" required></label>
-    <label>Descrição<input id="usedDesc" placeholder="Ex.: férias de verão"></label>
-    <button>Registar e descontar</button>
+  <form id="leaveForm" class="formGrid">
+    <label>Tipo<select id="leaveType"><option>Férias</option><option>Folga</option><option>Compensação</option><option>Outro</option></select></label>
+    <label>Data inicial<input id="leaveStart" type="date" required></label>
+    <label>Data final<input id="leaveEnd" type="date" required></label>
+    <label>Dias a descontar<input id="leaveDays" type="number" min="0.5" step="0.5" required></label>
+    <label>Descrição<input id="leaveNote"></label>
+    <button>Registar</button>
   </form>
-  <p class="hint">Ao escolher as datas, a aplicação calcula automaticamente os dias úteis de segunda a sexta-feira. Podes corrigir manualmente o número antes de guardar.</p>
+  <div class="tableWrap"><table id="leaveTable"></table></div>
+</section>
 
-  <h2>Histórico de férias, folgas e compensações</h2>
-  <div class="tableWrap"><table id="usedTable"></table></div>
+<section id="locais" class="panel">
+  <div class="toolbar">
+    <input id="locationSearch" placeholder="Pesquisar subestação, parque, localidade ou morada">
+    <select id="locationSource"><option value="">Todas as entidades</option></select>
+  </div>
+  <div id="locationResults" class="locationGrid"></div>
+</section>
+
+<section id="recibos" class="panel">
+  <p class="note">Aceita PDF, JPG, JPEG, PNG, WEBP, HEIC e HEIF. O ficheiro fica arquivado neste dispositivo. Podes indicar os valores encontrados para comparar com a estimativa da aplicação.</p>
+  <form id="receiptForm" class="formGrid">
+    <label>Mês<input id="receiptMonth" type="month" required></label>
+    <label>Ficheiro<input id="receiptFile" type="file" accept=".pdf,image/*,.heic,.heif" required></label>
+    <label>Líquido do recibo (€)<input id="receiptNet" type="number" min="0" step="0.01"></label>
+    <label>Horas extra pagas (€)<input id="receiptExtra" type="number" min="0" step="0.01"></label>
+    <button>Guardar recibo</button>
+  </form>
+  <div class="tableWrap"><table id="receiptsTable"></table></div>
 </section>
 
 <section id="definicoes" class="panel">
   <form id="settingsForm" class="formGrid settings">
     <label>Salário base bruto (€)<input name="salarioBase" type="number" step="0.01"></label>
-    <label>Segurança Social do trabalhador (%)<input name="taxaSS" type="number" min="0" max="100" step="0.01"></label>
+    <label>Segurança Social (%)<input name="taxaSS" type="number" step="0.01"></label>
     <label>Valor hora (€)<input name="valorHora" type="number" step="0.01"></label>
-    <label>Ajuda de custo padrão/dia (€)<input name="ajudaDia" type="number" step="0.01"></label>
+    <label>Ajuda de custo/dia (€)<input name="ajudaDia" type="number" step="0.01"></label>
     <label>Alojamento/dia (€)<input name="alojDia" type="number" step="0.01"></label>
-    <label>Saldo consolidado (dias)<input name="saldoInicial" type="number" step="0.5"></label>
-    <label>Consolidado até<input name="dataCorte" type="date"></label>
-    <label>Férias anuais a acrescentar<input name="diasFeriasAnuais" type="number" min="0" step="0.5"></label>
-    <label>Primeiro ano de acréscimo<input name="primeiroAnoFerias" type="number" min="2026" step="1"></label>
+    <label>Subsídio de refeição/dia (€)<input name="refeicaoDia" type="number" step="0.01"></label>
+    <label>Início das despesas<input name="inicioDespesas" type="date"></label>
+    <label>Saldo inicial (dias)<input name="saldoInicial" type="number" step="0.5"></label>
+    <label>Saldo consolidado até<input name="dataCorte" type="date"></label>
+    <label>Férias anuais<input name="diasFeriasAnuais" type="number" step="0.5"></label>
+    <label>Primeiro ano das férias<input name="primeiroAnoFerias" type="number"></label>
     <label>Multiplicador 25%<input name="m25" type="number" step="0.001"></label>
     <label>Multiplicador 125%<input name="m125" type="number" step="0.001"></label>
     <label>Multiplicador 137,5%<input name="m1375" type="number" step="0.001"></label>
@@ -187,18 +174,14 @@
     <label>Multiplicador 165%<input name="m165" type="number" step="0.001"></label>
     <button>Guardar definições</button>
   </form>
-  <p class="note">As folhas até 25/07/2026 não voltam a aumentar os 41 dias já consolidados. A partir de 01/01/2027 são acrescentados automaticamente 22 dias por ano ao mesmo saldo.</p>
-  <button id="clearBtn" class="danger">Apagar todos os dados de teste</button>
+  <button id="clearBtn" class="danger">Apagar todos os dados</button>
 </section>
 </main>
 
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs" type="module"></script>
 <script src="app.js"></script>
 <script>
-if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-  navigator.serviceWorker.register('sw.js');
-}
+if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js');
 </script>
 </body>
 </html>

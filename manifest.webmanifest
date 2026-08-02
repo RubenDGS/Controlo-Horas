@@ -1,7 +1,7 @@
 {
   "name": "Controlo Horas e Compensações",
   "short_name": "Horas",
-  "description": "Gestão de folhas de horas, recebimentos, férias e compensações.",
+  "description": "Horas, pagamentos, despesas, férias e locais de trabalho.",
   "id": "./",
   "start_url": "./index.html",
   "scope": "./",
