@@ -83,10 +83,55 @@ function balance(){return num(db.settings.saldoInicial)+db.sheets.reduce((a,s)=>
 function expenseSummary(m){const ex=db.expenses.filter(x=>monthOf(x.date)===m),g=monthGroup(m),food=ex.reduce((a,x)=>a+num(x.food),0),sleep=ex.reduce((a,x)=>a+num(x.sleep),0);return{food,sleep,travel:g.travel,lodging:g.lodging,remain:g.travel+g.lodging-food-sleep}}
 function allMonths(){const set=new Set(db.sheets.flatMap(s=>(s.entries||[]).map(e=>monthOf(e.date))).concat(db.payments.map(x=>x.month),db.expenses.map(x=>monthOf(x.date)),db.receipts.map(x=>x.month)));set.add(currentMonth());return [...set].filter(Boolean).sort()}
 function monthStatus(m){const warnings=[];if(!sheetsForMonth(m).length)warnings.push('sem folhas');if(!db.receipts.some(r=>r.month===m))warnings.push('sem recibo');if(m>='2027-01'&&monthGroup(m).travel+monthGroup(m).lodging>0&&!db.expenses.some(x=>monthOf(x.date)===m))warnings.push('sem despesas');const r=db.receipts.find(x=>x.month===m),p=salaryMonth(m);if(r?.net&&Math.abs(num(r.net)-p.net)>5)warnings.push('diferença no recibo');return warnings}
-function renderDashboard(){const m=$('dashMonth').value||currentMonth(),p=salaryMonth(m),e=expenseSummary(m),extra=p.h25+p.h125+p.h1375+p.h150+p.h165;const allExtra=db.sheets.reduce((a,s)=>a+num(s.h25)+num(s.h125)+num(s.h1375)+num(s.h150)+num(s.h165),0);$('dashNet').textContent=euro(p.net);$('dashExtra').textContent=fmt(extra)+' h';$('dashExtraAll').textContent=fmt(allExtra)+' h';const mealCount=mealDays(m);$('dashMeal').textContent=`${euro(mealCount*db.settings.refeicaoDia)} (${mealCount} dias)`;$('dashTravel').textContent=euro(p.travel);$('dashLodging').textContent=euro(p.lodging);$('dashBalance').textContent=fmt(balance())+' dias';$('dashExpenseBalance').textContent=euro(e.remain);const w=monthStatus(m),closed=isClosed(m);$('monthStatus').className='statusBox '+(w.length?'status-warn':'status-ok');$('monthStatus').innerHTML=`<strong>${closed?'🔒 Mês fechado':'🟢 Mês aberto'}</strong>${w.length?' · Falta: '+w.join(', '):' · Registos completos'}`;renderMonthly();renderAnnual()}
-function renderMonthly(){let h='<tr><th>Mês</th><th>Líquido recibo</th><th>Horas normais</th><th>Horas extra</th><th>Subs. refeição</th><th>Ajudas</th><th>Alojamento</th><th>Estado</th></tr>';for(const m of allMonths().reverse()){const p=salaryMonth(m),extra=p.h25+p.h125+p.h1375+p.h150+p.h165,w=monthStatus(m);h+=`<tr><td>${m}</td><td>${euro(p.net)}</td><td>${fmt(p.normal)} h</td><td>${fmt(extra)} h</td><td>${euro(mealDays(m)*db.settings.refeicaoDia)}</td><td>${euro(p.travel)}</td><td>${euro(p.lodging)}</td><td>${isClosed(m)?'<span class="closedBadge">Fechado</span>':w.length?'<span class="closedBadge">'+w.join(', ')+'</span>':'<span class="openBadge">Completo</span>'}</td></tr>`}$('monthlyTable').innerHTML=h}
-function renderAnnual(){const years={};for(const m of allMonths()){const y=m.slice(0,4),p=salaryMonth(m);years[y]??={net:0,normal:0,extra:0,meal:0,travel:0,lodging:0};years[y].net+=p.net;years[y].normal+=p.normal;years[y].extra+=p.h25+p.h125+p.h1375+p.h150+p.h165;years[y].meal+=mealDays(m)*db.settings.refeicaoDia;years[y].travel+=p.travel;years[y].lodging+=p.lodging}let h='<tr><th>Ano</th><th>Líquido recibos</th><th>Horas normais</th><th>Horas extra</th><th>Subs. refeição</th><th>Ajudas</th><th>Alojamento</th></tr>';for(const y of Object.keys(years).sort().reverse()){const x=years[y];h+=`<tr><td>${y}</td><td>${euro(x.net)}</td><td>${fmt(x.normal)} h</td><td>${fmt(x.extra)} h</td><td>${euro(x.meal)}</td><td>${euro(x.travel)}</td><td>${euro(x.lodging)}</td></tr>`}$('annualTable').innerHTML=h}
-function renderSheets(){const q=norm($('sheetSearch').value);let h='<tr><th>Ficheiro</th><th>Período</th><th>Cliente</th><th>Local</th><th>Normais</th><th>Extra</th><th>Ajudas</th><th>Aloj.</th><th></th></tr>';for(const s of [...db.sheets].sort((a,b)=>b.dataFinal.localeCompare(a.dataFinal))){if(q&&!norm(`${s.name} ${s.cliente} ${s.local} ${s.processo}`).includes(q))continue;const ex=num(s.h25)+num(s.h125)+num(s.h1375)+num(s.h150)+num(s.h165);h+=`<tr><td>${s.name}</td><td>${s.dataInicial}<br>${s.dataFinal}</td><td>${s.cliente}</td><td>${s.local}</td><td>${fmt(s.normal)} h</td><td>${fmt(ex)} h</td><td>${fmt(s.diasAjuda)} dias</td><td>${fmt(s.diasAloj)} dias</td><td><button onclick="removeSheet('${s.id}')">Apagar</button></td></tr>`}$('sheetsTable').innerHTML=h}
+function renderDashboard(){const m=$('dashMonth').value||currentMonth(),p=salaryMonth(m),e=expenseSummary(m),extra=p.h25+p.h125+p.h1375+p.h150+p.h165,totalHours=p.normal+extra;const allExtra=db.sheets.reduce((a,s)=>a+num(s.h25)+num(s.h125)+num(s.h1375)+num(s.h150)+num(s.h165),0);$('dashNet').textContent=euro(p.net);$('dashH100').textContent=fmt(p.normal)+' h';$('dashH25').textContent=fmt(p.h25)+' h';$('dashH125').textContent=fmt(p.h125)+' h';$('dashH1375').textContent=fmt(p.h1375)+' h';$('dashH150').textContent=fmt(p.h150)+' h';$('dashH165').textContent=fmt(p.h165)+' h';$('dashExtra').textContent=fmt(extra)+' h';$('dashTotalHours').textContent=fmt(totalHours)+' h';$('dashExtraAll').textContent=fmt(allExtra)+' h';const mealCount=mealDays(m);$('dashMeal').textContent=`${euro(mealCount*db.settings.refeicaoDia)} (${mealCount} dias)`;$('dashTravel').textContent=euro(p.travel);$('dashLodging').textContent=euro(p.lodging);$('dashBalance').textContent=fmt(balance())+' dias';$('dashExpenseBalance').textContent=euro(e.remain);const w=monthStatus(m),closed=isClosed(m);$('monthStatus').className='statusBox '+(w.length?'status-warn':'status-ok');$('monthStatus').innerHTML=`<strong>${closed?'🔒 Mês fechado':'🟢 Mês aberto'}</strong>${w.length?' · Falta: '+w.join(', '):' · Registos completos'}`;renderMonthly();renderAnnual()}
+function renderMonthly(){
+ let h='<tr><th>Mês</th><th>Líquido recibo</th><th>Horas a 100%</th><th>25%</th><th>125%</th><th>137,5%</th><th>150%</th><th>165%</th><th>Total extra</th><th>Total geral</th><th>Subs. refeição</th><th>Ajudas</th><th>Alojamento</th><th>Estado</th></tr>';
+ for(const m of allMonths().reverse()){
+  const p=salaryMonth(m);
+  const extra=p.h25+p.h125+p.h1375+p.h150+p.h165;
+  const totalHours=p.normal+extra;
+  const w=monthStatus(m);
+  h+=`<tr>
+   <td>${m}</td>
+   <td>${euro(p.net)}</td>
+   <td><strong>${fmt(p.normal)} h</strong></td>
+   <td>${fmt(p.h25)} h</td>
+   <td>${fmt(p.h125)} h</td>
+   <td>${fmt(p.h1375)} h</td>
+   <td>${fmt(p.h150)} h</td>
+   <td>${fmt(p.h165)} h</td>
+   <td><strong>${fmt(extra)} h</strong></td>
+   <td><strong>${fmt(totalHours)} h</strong></td>
+   <td>${euro(mealDays(m)*db.settings.refeicaoDia)}</td>
+   <td>${euro(p.travel)}</td>
+   <td>${euro(p.lodging)}</td>
+   <td>${isClosed(m)?'<span class="closedBadge">Fechado</span>':w.length?'<span class="closedBadge">'+w.join(', ')+'</span>':'<span class="openBadge">Completo</span>'}</td>
+  </tr>`;
+ }
+ $('monthlyTable').innerHTML=h;
+}
+function renderAnnual(){
+ const years={};
+ for(const m of allMonths()){
+  const y=m.slice(0,4),p=salaryMonth(m);
+  years[y]??={net:0,normal:0,h25:0,h125:0,h1375:0,h150:0,h165:0,meal:0,travel:0,lodging:0};
+  const x=years[y];
+  x.net+=p.net;x.normal+=p.normal;x.h25+=p.h25;x.h125+=p.h125;x.h1375+=p.h1375;x.h150+=p.h150;x.h165+=p.h165;
+  x.meal+=mealDays(m)*db.settings.refeicaoDia;x.travel+=p.travel;x.lodging+=p.lodging;
+ }
+ let h='<tr><th>Ano</th><th>Líquido recibos</th><th>Horas a 100%</th><th>25%</th><th>125%</th><th>137,5%</th><th>150%</th><th>165%</th><th>Total extra</th><th>Total geral</th><th>Subs. refeição</th><th>Ajudas</th><th>Alojamento</th></tr>';
+ for(const y of Object.keys(years).sort().reverse()){
+  const x=years[y],extra=x.h25+x.h125+x.h1375+x.h150+x.h165,total=x.normal+extra;
+  h+=`<tr>
+   <td>${y}</td><td>${euro(x.net)}</td><td><strong>${fmt(x.normal)} h</strong></td>
+   <td>${fmt(x.h25)} h</td><td>${fmt(x.h125)} h</td><td>${fmt(x.h1375)} h</td><td>${fmt(x.h150)} h</td><td>${fmt(x.h165)} h</td>
+   <td><strong>${fmt(extra)} h</strong></td><td><strong>${fmt(total)} h</strong></td>
+   <td>${euro(x.meal)}</td><td>${euro(x.travel)}</td><td>${euro(x.lodging)}</td>
+  </tr>`;
+ }
+ $('annualTable').innerHTML=h;
+}
+function renderSheets(){const q=norm($('sheetSearch').value);let h='<tr><th>Ficheiro</th><th>Período</th><th>Cliente</th><th>Local</th><th>100%</th><th>Extra</th><th>Ajudas</th><th>Aloj.</th><th></th></tr>';for(const s of [...db.sheets].sort((a,b)=>b.dataFinal.localeCompare(a.dataFinal))){if(q&&!norm(`${s.name} ${s.cliente} ${s.local} ${s.processo}`).includes(q))continue;const ex=num(s.h25)+num(s.h125)+num(s.h1375)+num(s.h150)+num(s.h165);h+=`<tr><td>${s.name}</td><td>${s.dataInicial}<br>${s.dataFinal}</td><td>${s.cliente}</td><td>${s.local}</td><td>${fmt(s.normal)} h</td><td>${fmt(ex)} h</td><td>${fmt(s.diasAjuda)} dias</td><td>${fmt(s.diasAloj)} dias</td><td><button onclick="removeSheet('${s.id}')">Apagar</button></td></tr>`}$('sheetsTable').innerHTML=h}
 function renderPayments(){const years=[...new Set(allMonths().map(m=>m.slice(0,4)))].sort().reverse(),sel=$('payYear').value||years[0]||String(new Date().getFullYear());$('payYear').innerHTML=years.map(y=>`<option ${y===sel?'selected':''}>${y}</option>`).join('');let sums={net:0,travel:0,lodging:0,meal:0},h='<tr><th>Mês</th><th>Bruto</th><th>SS</th><th>IRS</th><th>Líquido recibo</th><th>Ajudas</th><th>Alojamento</th><th>Subs. refeição</th><th>Recibo</th></tr>';for(const m of allMonths().filter(x=>x.startsWith(sel)).reverse()){const p=salaryMonth(m),receipt=db.receipts.find(r=>r.month===m);sums.net+=p.net;sums.travel+=p.travel;sums.lodging+=p.lodging;sums.meal+=mealDays(m)*db.settings.refeicaoDia;h+=`<tr><td>${m}</td><td>${euro(p.gross)}</td><td>- ${euro(p.ss)}</td><td>- ${euro(p.irs)}</td><td><strong>${euro(p.net)}</strong></td><td>${euro(p.travel)}</td><td>${euro(p.lodging)}</td><td>${euro(mealDays(m)*db.settings.refeicaoDia)}</td><td>${receipt?'✅':'⚠️ falta'}</td></tr>`}$('yearNet').textContent=euro(sums.net);$('yearTravel').textContent=euro(sums.travel);$('yearLodging').textContent=euro(sums.lodging);$('yearMeal').textContent=euro(sums.meal);$('paymentsTable').innerHTML=h}
 function latestSheetMonth(){
  const months=db.sheets.flatMap(s=>Array.isArray(s.entries)&&s.entries.length?s.entries.map(e=>monthOf(e.date)):[monthOf(s.dataFinal)]).filter(Boolean).sort();
@@ -110,13 +155,29 @@ function renderClients(){
    for(const k of ['normal','h25','h125','h1375','h150','h165'])groups[key][k]+=num(s[k]);
   }
  }
- let h='<tr><th>Cliente</th><th>Local</th><th>Normais</th><th>Total extra</th><th>25%</th><th>125%</th><th>137,5%</th><th>150%</th><th>165%</th></tr>';
+ let h='<tr><th>Cliente</th><th>Local</th><th>100%</th><th>25%</th><th>125%</th><th>137,5%</th><th>150%</th><th>165%</th><th>Total extra</th><th>Total geral</th></tr>';
  const rows=Object.values(groups).filter(x=>!q||norm(x.client+' '+x.local).includes(q)).sort((a,b)=>a.client.localeCompare(b.client));
+ const total={normal:0,h25:0,h125:0,h1375:0,h150:0,h165:0};
  for(const x of rows){
-  const ex=x.h25+x.h125+x.h1375+x.h150+x.h165;
-  h+=`<tr><td>${x.client}</td><td>${x.local}</td><td>${fmt(x.normal)}</td><td><strong>${fmt(ex)}</strong></td><td>${fmt(x.h25)}</td><td>${fmt(x.h125)}</td><td>${fmt(x.h1375)}</td><td>${fmt(x.h150)}</td><td>${fmt(x.h165)}</td></tr>`;
+  const extra=x.h25+x.h125+x.h1375+x.h150+x.h165,totalHours=x.normal+extra;
+  for(const k of Object.keys(total))total[k]+=num(x[k]);
+  h+=`<tr>
+   <td>${x.client}</td><td>${x.local}</td><td><strong>${fmt(x.normal)}</strong></td>
+   <td>${fmt(x.h25)}</td><td>${fmt(x.h125)}</td><td>${fmt(x.h1375)}</td><td>${fmt(x.h150)}</td><td>${fmt(x.h165)}</td>
+   <td><strong>${fmt(extra)}</strong></td><td><strong>${fmt(totalHours)}</strong></td>
+  </tr>`;
  }
- if(!rows.length)h+=`<tr><td colspan="9">Não existem folhas para ${m}. O último mês com folhas é ${latestSheetMonth()}.</td></tr>`;
+ if(rows.length){
+  const totalExtra=total.h25+total.h125+total.h1375+total.h150+total.h165;
+  const grand=total.normal+totalExtra;
+  h+=`<tr>
+   <th colspan="2">TOTAL DO MÊS</th>
+   <th>${fmt(total.normal)}</th><th>${fmt(total.h25)}</th><th>${fmt(total.h125)}</th><th>${fmt(total.h1375)}</th><th>${fmt(total.h150)}</th><th>${fmt(total.h165)}</th>
+   <th>${fmt(totalExtra)}</th><th>${fmt(grand)}</th>
+  </tr>`;
+ }else{
+  h+=`<tr><td colspan="10">Não existem folhas para ${m}. O último mês com folhas é ${latestSheetMonth()}.</td></tr>`;
+ }
  $('clientsTable').innerHTML=h;
 }
 function renderExpenses(){const m=$('expenseMonth').value||currentMonth(),s=expenseSummary(m);$('expenseTravelReceived').textContent=euro(s.travel);$('expenseFoodSpent').textContent=euro(s.food);$('expenseLodgingReceived').textContent=euro(s.lodging);$('expenseSleepSpent').textContent=euro(s.sleep);$('expenseRemain').textContent=euro(s.remain);let h='<tr><th>Data</th><th>Alimentação</th><th>Dormida</th><th>Observação</th><th></th></tr>';for(const x of db.expenses.filter(x=>monthOf(x.date)===m).sort((a,b)=>b.date.localeCompare(a.date))){h+=`<tr><td>${x.date}</td><td>${euro(x.food)}</td><td>${euro(x.sleep)}</td><td>${x.note||''}</td><td><button onclick="removeExpense('${x.id}')">Apagar</button></td></tr>`}$('expensesTable').innerHTML=h}

@@ -27,3 +27,22 @@ CORREÇÕES V3.1
 - Migração automática das folhas já importadas com horas guardadas como frações Excel.
 - Clientes abre no último mês com folhas e aceita folhas antigas sem detalhe diário.
 - O botão Waze tenta abrir diretamente a aplicação instalada e só usa o navegador como alternativa.
+
+
+ALTERAÇÕES V3.2
+- Soma mensal das horas normais.
+- Totais mensais separados por cada tipo: 25%, 125%, 137,5%, 150% e 165%.
+- Total mensal de horas extra.
+- Total mensal de todas as horas: normais + extra.
+- Na página Clientes, linha TOTAL DO MÊS no fim da tabela.
+- Resumo anual também detalhado por cada tipo de hora.
+
+
+ALTERAÇÕES V3.3
+- A designação “Horas normais” passa a “Horas a 100%”.
+- Dashboard com cartões mensais separados para 100%, 25%, 125%, 137,5%, 150% e 165%.
+- Dashboard mostra também Total Extra do mês e Total Geral do mês.
+- Resumo mensal mantém a soma de cada tipo de hora.
+- Resumo anual apresenta a contagem final de 100%, 25%, 125%, 137,5%, 150% e 165%.
+- Resumo anual inclui Total Extra e Total Geral.
+- Página Clientes usa a mesma terminologia e mantém a linha TOTAL DO MÊS.
