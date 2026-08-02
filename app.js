@@ -10,6 +10,19 @@ const $=id=>document.getElementById(id);
 const defaults={settings:{salarioBase:1500,taxaSS:11,valorHora:8.65,ajudaDia:90,alojDia:65,refeicaoDia:10.46,inicioDespesas:'2027-01-01',saldoInicial:41,dataCorte:'2026-07-25',diasFeriasAnuais:22,primeiroAnoFerias:2027,m25:.25,m125:1.25,m1375:1.375,m150:1.5,m165:1.65},sheets:[],used:[],payments:[],expenses:[],receipts:[],closedMonths:[]};
 let db=load(),locations=[],pendingImports=[];
 normalizeStoredSheetHours();
+
+function cleanCorruptedMoneyData(){
+ let changed=false;
+ for(const p of db.payments||[]){
+  if(num(p.net)>10000||num(p.net)<0){p.net=null;changed=true}
+ }
+ for(const r of db.receipts||[]){
+  if(r.parsed&&(num(r.parsed.net)>10000||num(r.parsed.net)<0)){r.parsed.net=null;changed=true}
+ }
+ if(changed)localStorage.setItem(KEY,JSON.stringify(db));
+}
+cleanCorruptedMoneyData();
+
 function clone(x){return JSON.parse(JSON.stringify(x))}
 function load(){try{const o=JSON.parse(localStorage.getItem(KEY)||'{}');return {...clone(defaults),...o,settings:{...defaults.settings,...(o.settings||{})},sheets:Array.isArray(o.sheets)?o.sheets:[],used:Array.isArray(o.used)?o.used:[],payments:Array.isArray(o.payments)?o.payments:[],expenses:Array.isArray(o.expenses)?o.expenses:[],receipts:Array.isArray(o.receipts)?o.receipts:[],closedMonths:Array.isArray(o.closedMonths)?o.closedMonths:[]}}catch{return clone(defaults)}}
 function save(){localStorage.setItem(KEY,JSON.stringify(db));render()}
@@ -152,7 +165,18 @@ function parseTimesheet(file,buffer,hash){
   _file:file
  };
 }
-function overtimeValue(g){const s=db.settings;return s.valorHora*(num(g.h25)*s.m25+num(g.h125)*s.m125+num(g.h1375)*s.m1375+num(g.h150)*s.m150+num(g.h165)*s.m165)}
+function overtimeValue(g){
+ const s=db.settings;
+ // As horas a 100% são horas normais já incluídas no salário base.
+ // Só estas categorias acrescentam valor ao ordenado:
+ return s.valorHora*(
+  num(g.h25)*s.m25+
+  num(g.h125)*s.m125+
+  num(g.h1375)*s.m1375+
+  num(g.h150)*s.m150+
+  num(g.h165)*s.m165
+ );
+}
 function irs2026(R){R=Math.max(0,num(R));let t=0,a=0;if(R<=920){}else if(R<=1042){t=.125;a=.125*2.6*(1273.85-R)}else if(R<=1108){t=.157;a=.157*1.35*(1554.83-R)}else if(R<=1154){t=.157;a=94.71}else if(R<=1212){t=.212;a=158.18}else if(R<=1819){t=.241;a=193.33}else if(R<=2119){t=.311;a=320.66}else if(R<=2499){t=.349;a=401.19}else if(R<=3305){t=.3836;a=487.66}else if(R<=5547){t=.3969;a=531.62}else if(R<=20221){t=.4495;a=823.4}else{t=.4717;a=1272.31}const v=Math.max(0,R*t-a);return{value:v,effective:R?v/R:0}}
 function sheetsForMonth(m){return db.sheets.filter(s=>monthOf(s.dataFinal)===m||s.entries?.some(e=>monthOf(e.date)===m))}
 function monthGroup(m){
@@ -178,29 +202,33 @@ function monthGroup(m){
 
  return g;
 }
-function salaryMonth(m){const g=monthGroup(m),grossHours=overtimeValue(g),gross=db.settings.salarioBase+grossHours,ss=gross*db.settings.taxaSS/100,irsBase=irs2026(db.settings.salarioBase),irsHours=grossHours*(irsBase.effective/2),net=gross-ss-irsBase.value-irsHours;const correction=db.payments.find(x=>x.month===m);const receipt=db.receipts.find(r=>r.month===m);
+function salaryMonth(m){
+ const g=monthGroup(m);
+ const grossHours=overtimeValue(g);
+ const gross=db.settings.salarioBase+grossHours;
+ const ss=gross*db.settings.taxaSS/100;
+ const irsBase=irs2026(db.settings.salarioBase);
+ const irsHours=grossHours*(irsBase.effective/2);
+ const estimatedNet=gross-ss-irsBase.value-irsHours;
+
+ // Preferir o líquido real lido do recibo, desde que seja plausível.
+ const receipt=db.receipts.find(r=>r.month===m);
  const receiptNet=num(receipt?.parsed?.net);
  const safeReceiptNet=receiptNet>=300&&receiptNet<=10000?receiptNet:null;
- return{...g,grossHours,gross,ss,irs:irsBase.value+irsHours,net:safeReceiptNet??correction?.net??net}}
-function easterDate(y){const a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),month=Math.floor((h+l-7*m+114)/31),day=((h+l-7*m+114)%31)+1;return new Date(y,month-1,day)}
-function isoLocal(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
-function holidays(y){const fixed=['01-01','04-25','05-01','06-10','08-15','10-05','11-01','12-01','12-08','12-25'].map(x=>`${y}-${x}`);const e=easterDate(y),good=new Date(e);good.setDate(e.getDate()-2);const corpus=new Date(e);corpus.setDate(e.getDate()+60);return new Set([...fixed,isoLocal(good),isoLocal(e),isoLocal(corpus)])}
-function coveredByLeave(date){return db.used.some(x=>date>=x.date&&date<=(x.endDate||x.date))}
-function sheetDates(){
- const set=new Set();
- for(const s of db.sheets){
-  // Dias explicitamente registados.
-  (s.entries||[]).forEach(e=>{if(e.date)set.add(e.date)});
-  // A folha semanal cobre todo o intervalo entre a primeira e a última data.
-  if(s.dataInicial&&s.dataFinal){
-   const start=new Date(s.dataInicial+'T12:00:00'),end=new Date(s.dataFinal+'T12:00:00');
-   for(let d=new Date(start);d<=end;d.setDate(d.getDate()+1)){
-    const dow=d.getDay();
-    if(dow!==0&&dow!==6)set.add(isoLocal(d));
-   }
-  }
- }
- return set;
+
+ // Compatibilidade com valores manuais antigos, rejeitando leituras absurdas.
+ const correction=db.payments.find(x=>x.month===m);
+ const manualNet=num(correction?.net);
+ const safeManualNet=manualNet>=300&&manualNet<=10000?manualNet:null;
+
+ return{
+  ...g,
+  grossHours,
+  gross,
+  ss,
+  irs:irsBase.value+irsHours,
+  net:safeReceiptNet??safeManualNet??estimatedNet
+ };
 }
 function mealDays(m){
  if(!m)return 0;
@@ -223,7 +251,7 @@ function allMonths(){const set=new Set(db.sheets.flatMap(s=>(s.entries||[]).map(
 function monthStatus(m){const warnings=[];if(!sheetsForMonth(m).length)warnings.push('sem folhas');if(!db.receipts.some(r=>r.month===m))warnings.push('sem recibo');if(m>='2027-01'&&monthGroup(m).travel+monthGroup(m).lodging>0&&!db.expenses.some(x=>monthOf(x.date)===m))warnings.push('sem despesas');const r=db.receipts.find(x=>x.month===m),p=salaryMonth(m);if(r?.net&&Math.abs(num(r.net)-p.net)>5)warnings.push('diferença no recibo');return warnings}
 function renderDashboard(){const m=$('dashMonth').value||currentMonth(),p=salaryMonth(m),e=expenseSummary(m),extra=p.h25+p.h125+p.h1375+p.h150+p.h165,totalHours=p.normal+extra;const allExtra=db.sheets.reduce((a,s)=>a+num(s.h25)+num(s.h125)+num(s.h1375)+num(s.h150)+num(s.h165),0);$('dashNet').textContent=euro(p.net);$('dashH100').textContent=fmt(p.normal)+' h';$('dashH25').textContent=fmt(p.h25)+' h';$('dashH125').textContent=fmt(p.h125)+' h';$('dashH1375').textContent=fmt(p.h1375)+' h';$('dashH150').textContent=fmt(p.h150)+' h';$('dashH165').textContent=fmt(p.h165)+' h';$('dashExtra').textContent=fmt(extra)+' h';$('dashTotalHours').textContent=fmt(totalHours)+' h';$('dashExtraAll').textContent=fmt(allExtra)+' h';const mealCount=mealDays(m);$('dashMeal').textContent=`${euro(mealCount*db.settings.refeicaoDia)} (${mealCount} dias sem folha)`;$('dashTravel').textContent=euro(p.travel);$('dashLodging').textContent=euro(p.lodging);$('dashBalance').textContent=fmt(balance())+' dias';$('dashExpenseBalance').textContent=euro(e.remain);const w=monthStatus(m),closed=isClosed(m);$('monthStatus').className='statusBox '+(w.length?'status-warn':'status-ok');$('monthStatus').innerHTML=`<strong>${closed?'🔒 Mês fechado':'🟢 Mês aberto'}</strong>${w.length?' · Falta: '+w.join(', '):' · Registos completos'}`;renderMonthly();renderAnnual()}
 function renderMonthly(){
- let h='<tr><th>Mês</th><th>Líquido recibo</th><th>Horas a 100%</th><th>25%</th><th>125%</th><th>137,5%</th><th>150%</th><th>165%</th><th>Total extra</th><th>Total geral</th><th>Subs. refeição</th><th>Ajudas</th><th>Alojamento</th><th>Estado</th></tr>';
+ let h='<tr><th>Mês</th><th>Ordenado líquido</th><th>Horas a 100%</th><th>25%</th><th>125%</th><th>137,5%</th><th>150%</th><th>165%</th><th>Total extra</th><th>Total geral</th><th>Subs. refeição</th><th>Ajudas</th><th>Alojamento</th><th>Estado</th></tr>';
  for(const m of allMonths().reverse()){
   const p=salaryMonth(m);
   const extra=p.h25+p.h125+p.h1375+p.h150+p.h165;
@@ -257,7 +285,7 @@ function renderAnnual(){
   x.net+=p.net;x.normal+=p.normal;x.h25+=p.h25;x.h125+=p.h125;x.h1375+=p.h1375;x.h150+=p.h150;x.h165+=p.h165;
   x.meal+=mealDays(m)*db.settings.refeicaoDia;x.travel+=p.travel;x.lodging+=p.lodging;
  }
- let h='<tr><th>Ano</th><th>Líquido recibos</th><th>Horas a 100%</th><th>25%</th><th>125%</th><th>137,5%</th><th>150%</th><th>165%</th><th>Total extra</th><th>Total geral</th><th>Subs. refeição</th><th>Ajudas</th><th>Alojamento</th></tr>';
+ let h='<tr><th>Ano</th><th>Ordenado líquidos</th><th>Horas a 100%</th><th>25%</th><th>125%</th><th>137,5%</th><th>150%</th><th>165%</th><th>Total extra</th><th>Total geral</th><th>Subs. refeição</th><th>Ajudas</th><th>Alojamento</th></tr>';
  for(const y of Object.keys(years).sort().reverse()){
   const x=years[y],extra=x.h25+x.h125+x.h1375+x.h150+x.h165,total=x.normal+extra;
   h+=`<tr>
@@ -270,7 +298,7 @@ function renderAnnual(){
  $('annualTable').innerHTML=h;
 }
 function renderSheets(){const q=norm($('sheetSearch').value);let h='<tr><th>Ficheiro</th><th>Período</th><th>Cliente</th><th>Local</th><th>100%</th><th>Extra</th><th>Ajudas</th><th>Aloj.</th><th></th></tr>';for(const s of [...db.sheets].sort((a,b)=>b.dataFinal.localeCompare(a.dataFinal))){if(q&&!norm(`${s.name} ${s.cliente} ${s.local} ${s.processo}`).includes(q))continue;const ex=num(s.h25)+num(s.h125)+num(s.h1375)+num(s.h150)+num(s.h165);h+=`<tr><td>${s.name}</td><td>${s.dataInicial}<br>${s.dataFinal}</td><td>${s.cliente}</td><td>${s.local}</td><td>${fmt(s.normal)} h</td><td>${fmt(ex)} h</td><td>${fmt(s.diasAjuda)} dias</td><td>${fmt(s.diasAloj)} dias</td><td>${s.originalKey?`<button onclick="downloadStoredFile('${s.originalKey}','${String(s.name).replace(/'/g,"&#39;")}')">Abrir original</button> `:''}<button onclick="removeSheet('${s.id}')">Apagar</button></td></tr>`}$('sheetsTable').innerHTML=h}
-function renderPayments(){const years=[...new Set(allMonths().map(m=>m.slice(0,4)))].sort().reverse(),sel=$('payYear').value||years[0]||String(new Date().getFullYear());$('payYear').innerHTML=years.map(y=>`<option ${y===sel?'selected':''}>${y}</option>`).join('');let sums={net:0,travel:0,lodging:0,meal:0},h='<tr><th>Mês</th><th>Bruto</th><th>SS</th><th>IRS</th><th>Líquido recibo</th><th>Ajudas</th><th>Alojamento</th><th>Subs. refeição</th><th>Recibo</th></tr>';for(const m of allMonths().filter(x=>x.startsWith(sel)).reverse()){const p=salaryMonth(m),receipt=db.receipts.find(r=>r.month===m);sums.net+=p.net;sums.travel+=p.travel;sums.lodging+=p.lodging;sums.meal+=mealDays(m)*db.settings.refeicaoDia;h+=`<tr><td>${m}</td><td>${euro(p.gross)}</td><td>- ${euro(p.ss)}</td><td>- ${euro(p.irs)}</td><td><strong>${euro(p.net)}</strong></td><td>${euro(p.travel)}</td><td>${euro(p.lodging)}</td><td>${euro(mealDays(m)*db.settings.refeicaoDia)}</td><td>${receipt?'✅':'⚠️ falta'}</td></tr>`}$('yearNet').textContent=euro(sums.net);$('yearTravel').textContent=euro(sums.travel);$('yearLodging').textContent=euro(sums.lodging);$('yearMeal').textContent=euro(sums.meal);$('paymentsTable').innerHTML=h}
+function renderPayments(){const years=[...new Set(allMonths().map(m=>m.slice(0,4)))].sort().reverse(),sel=$('payYear').value||years[0]||String(new Date().getFullYear());$('payYear').innerHTML=years.map(y=>`<option ${y===sel?'selected':''}>${y}</option>`).join('');let sums={net:0,travel:0,lodging:0,meal:0},h='<tr><th>Mês</th><th>Bruto</th><th>SS</th><th>IRS</th><th>Ordenado líquido</th><th>Ajudas</th><th>Alojamento</th><th>Subs. refeição</th><th>Recibo</th></tr>';for(const m of allMonths().filter(x=>x.startsWith(sel)).reverse()){const p=salaryMonth(m),receipt=db.receipts.find(r=>r.month===m);sums.net+=p.net;sums.travel+=p.travel;sums.lodging+=p.lodging;sums.meal+=mealDays(m)*db.settings.refeicaoDia;h+=`<tr><td>${m}</td><td>${euro(p.gross)}</td><td>- ${euro(p.ss)}</td><td>- ${euro(p.irs)}</td><td><strong>${euro(p.net)}</strong></td><td>${euro(p.travel)}</td><td>${euro(p.lodging)}</td><td>${euro(mealDays(m)*db.settings.refeicaoDia)}</td><td>${receipt?'✅':'⚠️ falta'}</td></tr>`}$('yearNet').textContent=euro(sums.net);$('yearTravel').textContent=euro(sums.travel);$('yearLodging').textContent=euro(sums.lodging);$('yearMeal').textContent=euro(sums.meal);$('paymentsTable').innerHTML=h}
 function latestSheetMonth(){
  const months=db.sheets.flatMap(s=>Array.isArray(s.entries)&&s.entries.length?s.entries.map(e=>monthOf(e.date)):[monthOf(s.dataFinal)]).filter(Boolean).sort();
  return months.at(-1)||currentMonth();
@@ -407,7 +435,7 @@ function comparisonRows(receipt){
   {label:'Valor horas extra',expected:p.grossHours,actual:receipt.extraValue,unit:'€'},
   {label:'Segurança Social',expected:p.ss,actual:receipt.ss,unit:'€'},
   {label:'IRS',expected:p.irs,actual:receipt.irs,unit:'€'},
-  {label:'Líquido do recibo',expected:p.net,actual:receipt.net,unit:'€'}
+  {label:'Ordenado líquido',expected:p.net,actual:receipt.net,unit:'€'}
  ].map(x=>({...x,diff:x.actual==null?null:x.actual-x.expected,ok:x.actual!=null&&Math.abs(x.actual-x.expected)<(x.unit==='h'?.01:.05)}));
 }
 
