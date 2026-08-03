@@ -100,3 +100,11 @@ CORREÇÃO V3.8.2 — CÁLCULO DO ORDENADO
 - Valores líquidos acima de 5 000 € são rejeitados.
 - Não mexe nas folhas, clientes, resumos, recibos, despesas ou mapas.
 - Não é necessário voltar a importar folhas.
+
+
+VERSÃO 3.8.3 — ATUALIZAÇÃO FORÇADA
+- Mantém a lógica da versão 3.8.2.
+- Força o telemóvel e o computador a carregar o novo app.js, evitando a versão antiga presa em cache.
+- Mostra “v3.8.3” no canto inferior direito para confirmar a versão realmente aberta.
+- Não apaga folhas, recibos, despesas, configurações nem outros dados.
+- O líquido apresentado fica limitado a valores mensais plausíveis até 5 000 €.
