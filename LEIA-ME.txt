@@ -92,10 +92,10 @@ ATUALIZAÇÃO V3.8 — REGRA DEFINITIVA DAS HORAS
 - O detalhe diário mantém-se apenas para datas e cálculo do subsídio de refeição.
 
 
-VERSÃO V4.2 — RECUPERAÇÃO
-- Reposta integralmente a base estável da versão 3.8.
-- Não altera nem apaga folhas, recibos ou resumos.
-- Procura automaticamente dados guardados por versões anteriores.
-- Recupera a cópia local que tiver o maior número de folhas.
-- Volta a guardar os dados recuperados na chave principal.
-- Não é necessário apagar nem voltar a importar folhas antes de testar.
+CORREÇÃO V3.8.1
+- Mantida integralmente a versão 3.8.
+- As horas a 100% continuam apenas nas estatísticas e não entram no ordenado.
+- O valor líquido usa salário base + horas extra - descontos.
+- Valores líquidos guardados acima de 10 000 € são ignorados e limpos.
+- Não altera folhas, clientes, resumos, recibos, despesas ou mapas.
+- Não é necessário voltar a importar as folhas.

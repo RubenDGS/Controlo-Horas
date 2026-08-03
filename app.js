@@ -9,57 +9,17 @@ async function downloadStoredFile(key,name){const blob=await getStoredFile(key);
 const $=id=>document.getElementById(id);
 const defaults={settings:{salarioBase:1500,taxaSS:11,valorHora:8.65,ajudaDia:90,alojDia:65,refeicaoDia:10.46,inicioDespesas:'2027-01-01',saldoInicial:41,dataCorte:'2026-07-25',diasFeriasAnuais:22,primeiroAnoFerias:2027,m25:.25,m125:1.25,m1375:1.375,m150:1.5,m165:1.65},sheets:[],used:[],payments:[],expenses:[],receipts:[],closedMonths:[]};
 let db=load(),locations=[],pendingImports=[];
+(function cleanInvalidPaymentValues(){
+ let changed=false;
+ for(const p of db.payments||[]){
+  const v=num(p.net);
+  if(v>10000||v<0){p.net=null;changed=true}
+ }
+ if(changed)localStorage.setItem(KEY,JSON.stringify(db));
+})();
 normalizeStoredSheetHours();
 function clone(x){return JSON.parse(JSON.stringify(x))}
-function load(){
- try{
-  let best={};
-  let bestCount=-1;
-
-  // Primeiro tentar a chave principal.
-  try{
-   const main=JSON.parse(localStorage.getItem(KEY)||'{}');
-   if(main&&typeof main==='object'){
-    best=main;
-    bestCount=Array.isArray(main.sheets)?main.sheets.length:0;
-   }
-  }catch{}
-
-  // Procurar cópias anteriores ou dados guardados por versões antigas.
-  for(let i=0;i<localStorage.length;i++){
-   const k=localStorage.key(i);
-   if(!k)continue;
-   try{
-    const candidate=JSON.parse(localStorage.getItem(k));
-    if(!candidate||typeof candidate!=='object')continue;
-    const count=Array.isArray(candidate.sheets)?candidate.sheets.length:-1;
-    if(count>bestCount){
-     best=candidate;
-     bestCount=count;
-    }
-   }catch{}
-  }
-
-  const o=best||{};
-  const restored={
-   ...clone(defaults),
-   ...o,
-   settings:{...defaults.settings,...(o.settings||{})},
-   sheets:Array.isArray(o.sheets)?o.sheets:[],
-   used:Array.isArray(o.used)?o.used:[],
-   payments:Array.isArray(o.payments)?o.payments:[],
-   expenses:Array.isArray(o.expenses)?o.expenses:[],
-   receipts:Array.isArray(o.receipts)?o.receipts:[],
-   closedMonths:Array.isArray(o.closedMonths)?o.closedMonths:[]
-  };
-
-  // Guardar novamente na chave principal sem apagar nada.
-  localStorage.setItem(KEY,JSON.stringify(restored));
-  return restored;
- }catch{
-  return clone(defaults);
- }
-}
+function load(){try{const o=JSON.parse(localStorage.getItem(KEY)||'{}');return {...clone(defaults),...o,settings:{...defaults.settings,...(o.settings||{})},sheets:Array.isArray(o.sheets)?o.sheets:[],used:Array.isArray(o.used)?o.used:[],payments:Array.isArray(o.payments)?o.payments:[],expenses:Array.isArray(o.expenses)?o.expenses:[],receipts:Array.isArray(o.receipts)?o.receipts:[],closedMonths:Array.isArray(o.closedMonths)?o.closedMonths:[]}}catch{return clone(defaults)}}
 function save(){localStorage.setItem(KEY,JSON.stringify(db));render()}
 function num(v){if(typeof v==='number')return Number.isFinite(v)?v:0;if(v===null||v===undefined||v==='')return 0;const x=Number(String(v).trim().replace(/\s/g,'').replace(/€/g,'').replace(/\.(?=\d{3}(?:\D|$))/g,'').replace(',','.'));return Number.isFinite(x)?x:0}
 function hourValue(v){
@@ -226,7 +186,23 @@ function monthGroup(m){
 
  return g;
 }
-function salaryMonth(m){const g=monthGroup(m),grossHours=overtimeValue(g),gross=db.settings.salarioBase+grossHours,ss=gross*db.settings.taxaSS/100,irsBase=irs2026(db.settings.salarioBase),irsHours=grossHours*(irsBase.effective/2),net=gross-ss-irsBase.value-irsHours;const correction=db.payments.find(x=>x.month===m);return{...g,grossHours,gross,ss,irs:irsBase.value+irsHours,net:correction?.net??net}}
+function salaryMonth(m){
+ const g=monthGroup(m);
+ // As horas a 100% são horas normais e não entram no valor do ordenado.
+ const grossHours=overtimeValue(g);
+ const gross=db.settings.salarioBase+grossHours;
+ const ss=gross*db.settings.taxaSS/100;
+ const irsBase=irs2026(db.settings.salarioBase);
+ const irsHours=grossHours*(irsBase.effective/2);
+ const calculatedNet=gross-ss-irsBase.value-irsHours;
+
+ // Usar correção manual apenas se for um valor mensal plausível.
+ const correction=db.payments.find(x=>x.month===m);
+ const correctedNet=num(correction?.net);
+ const safeNet=correctedNet>=300&&correctedNet<=10000?correctedNet:calculatedNet;
+
+ return{...g,grossHours,gross,ss,irs:irsBase.value+irsHours,net:safeNet};
+}
 function easterDate(y){const a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),month=Math.floor((h+l-7*m+114)/31),day=((h+l-7*m+114)%31)+1;return new Date(y,month-1,day)}
 function isoLocal(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
 function holidays(y){const fixed=['01-01','04-25','05-01','06-10','08-15','10-05','11-01','12-01','12-08','12-25'].map(x=>`${y}-${x}`);const e=easterDate(y),good=new Date(e);good.setDate(e.getDate()-2);const corpus=new Date(e);corpus.setDate(e.getDate()+60);return new Set([...fixed,isoLocal(good),isoLocal(e),isoLocal(corpus)])}
