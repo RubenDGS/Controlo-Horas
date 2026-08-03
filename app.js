@@ -9,11 +9,16 @@ async function downloadStoredFile(key,name){const blob=await getStoredFile(key);
 const $=id=>document.getElementById(id);
 const defaults={settings:{salarioBase:1500,taxaSS:11,valorHora:8.65,ajudaDia:90,alojDia:65,refeicaoDia:10.46,inicioDespesas:'2027-01-01',saldoInicial:41,dataCorte:'2026-07-25',diasFeriasAnuais:22,primeiroAnoFerias:2027,m25:.25,m125:1.25,m1375:1.375,m150:1.5,m165:1.65},sheets:[],used:[],payments:[],expenses:[],receipts:[],closedMonths:[]};
 let db=load(),locations=[],pendingImports=[];
-(function cleanInvalidPaymentValues(){
+(function repairSalarySettings(){
  let changed=false;
+ const fixed={m25:0.25,m125:1.25,m1375:1.375,m150:1.5,m165:1.65};
+ for(const [k,v] of Object.entries(fixed)){
+  if(num(db.settings[k])!==v){db.settings[k]=v;changed=true}
+ }
+ if(num(db.settings.salarioBase)<=0||num(db.settings.salarioBase)>10000){db.settings.salarioBase=1500;changed=true}
+ if(num(db.settings.valorHora)<=0||num(db.settings.valorHora)>100){db.settings.valorHora=8.65;changed=true}
  for(const p of db.payments||[]){
-  const v=num(p.net);
-  if(v>10000||v<0){p.net=null;changed=true}
+  if(num(p.net)>5000||num(p.net)<0){p.net=null;changed=true}
  }
  if(changed)localStorage.setItem(KEY,JSON.stringify(db));
 })();
@@ -160,7 +165,18 @@ function parseTimesheet(file,buffer,hash){
   _file:file
  };
 }
-function overtimeValue(g){const s=db.settings;return s.valorHora*(num(g.h25)*s.m25+num(g.h125)*s.m125+num(g.h1375)*s.m1375+num(g.h150)*s.m150+num(g.h165)*s.m165)}
+function overtimeValue(g){
+ const valorHora=num(db.settings.valorHora);
+ // 100% não entra aqui. Fatores fixos:
+ // 25% = 0,25; 125% = 1,25; 137,5% = 1,375; 150% = 1,5; 165% = 1,65.
+ return valorHora*(
+  num(g.h25)*0.25+
+  num(g.h125)*1.25+
+  num(g.h1375)*1.375+
+  num(g.h150)*1.5+
+  num(g.h165)*1.65
+ );
+}
 function irs2026(R){R=Math.max(0,num(R));let t=0,a=0;if(R<=920){}else if(R<=1042){t=.125;a=.125*2.6*(1273.85-R)}else if(R<=1108){t=.157;a=.157*1.35*(1554.83-R)}else if(R<=1154){t=.157;a=94.71}else if(R<=1212){t=.212;a=158.18}else if(R<=1819){t=.241;a=193.33}else if(R<=2119){t=.311;a=320.66}else if(R<=2499){t=.349;a=401.19}else if(R<=3305){t=.3836;a=487.66}else if(R<=5547){t=.3969;a=531.62}else if(R<=20221){t=.4495;a=823.4}else{t=.4717;a=1272.31}const v=Math.max(0,R*t-a);return{value:v,effective:R?v/R:0}}
 function sheetsForMonth(m){return db.sheets.filter(s=>monthOf(s.dataFinal)===m||s.entries?.some(e=>monthOf(e.date)===m))}
 function monthGroup(m){
@@ -188,18 +204,22 @@ function monthGroup(m){
 }
 function salaryMonth(m){
  const g=monthGroup(m);
- // As horas a 100% são horas normais e não entram no valor do ordenado.
+ const base=num(db.settings.salarioBase);
  const grossHours=overtimeValue(g);
- const gross=db.settings.salarioBase+grossHours;
- const ss=gross*db.settings.taxaSS/100;
- const irsBase=irs2026(db.settings.salarioBase);
+ const gross=base+grossHours;
+ const ss=gross*num(db.settings.taxaSS)/100;
+ const irsBase=irs2026(base);
  const irsHours=grossHours*(irsBase.effective/2);
  const calculatedNet=gross-ss-irsBase.value-irsHours;
 
- // Usar correção manual apenas se for um valor mensal plausível.
+ // Uma correção manual só é aceite dentro de limites realistas.
  const correction=db.payments.find(x=>x.month===m);
- const correctedNet=num(correction?.net);
- const safeNet=correctedNet>=300&&correctedNet<=10000?correctedNet:calculatedNet;
+ const manualNet=num(correction?.net);
+ const safeManualNet=manualNet>=300&&manualNet<=5000?manualNet:null;
+
+ // Proteção final contra qualquer valor impossível.
+ const net=safeManualNet??calculatedNet;
+ const safeNet=net>=300&&net<=5000?net:Math.max(0,base-ss-irsBase.value);
 
  return{...g,grossHours,gross,ss,irs:irsBase.value+irsHours,net:safeNet};
 }

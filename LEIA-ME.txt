@@ -92,10 +92,11 @@ ATUALIZAÇÃO V3.8 — REGRA DEFINITIVA DAS HORAS
 - O detalhe diário mantém-se apenas para datas e cálculo do subsídio de refeição.
 
 
-CORREÇÃO V3.8.1
-- Mantida integralmente a versão 3.8.
-- As horas a 100% continuam apenas nas estatísticas e não entram no ordenado.
-- O valor líquido usa salário base + horas extra - descontos.
-- Valores líquidos guardados acima de 10 000 € são ignorados e limpos.
-- Não altera folhas, clientes, resumos, recibos, despesas ou mapas.
-- Não é necessário voltar a importar as folhas.
+CORREÇÃO V3.8.2 — CÁLCULO DO ORDENADO
+- Mantida a versão 3.8 como base.
+- Horas a 100% não entram no ordenado.
+- Fatores das horas extra ficam fixos e corretos: 0,25; 1,25; 1,375; 1,5; 1,65.
+- Corrige automaticamente definições antigas que estivessem como 25, 125, 137,5, 150 ou 165.
+- Valores líquidos acima de 5 000 € são rejeitados.
+- Não mexe nas folhas, clientes, resumos, recibos, despesas ou mapas.
+- Não é necessário voltar a importar folhas.
