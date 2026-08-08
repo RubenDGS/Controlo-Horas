@@ -10,13 +10,14 @@
   <link rel="apple-touch-icon" href="icon-192.png">
   <link rel="stylesheet" href="styles.css">
 </head>
-<body><div id="appVersion" style="position:fixed;right:6px;bottom:6px;z-index:9999;font-size:11px;background:#fff;border:1px solid #ccc;border-radius:6px;padding:3px 6px;opacity:.85">v3.8.8</div>
+<body><div id="appVersion" style="position:fixed;right:6px;bottom:6px;z-index:9999;font-size:11px;background:#fff;border:1px solid #ccc;border-radius:6px;padding:3px 6px;opacity:.85">v3.8.9</div>
 <header class="appHeader">
   <div class="brand">
     <img class="brandLogo" src="logotipo.png" alt="Logótipo">
     <div class="brandText">
       <h1>Controlo Horas e Compensações</h1>
       <p>Horas, pagamentos, deslocações e banco de dias</p>
+      <p id="headerUserName" style="font-weight:700;margin-top:2px"></p>
     </div>
   </div>
   <div class="headerActions">
@@ -99,7 +100,7 @@
   <div class="toolbar">
     <label>Mês <input id="clientMonth" type="month"></label>
     <input id="clientFilter" placeholder="Filtrar cliente ou local">
-    <button id="shareClientsBtn" type="button">📤 Partilhar</button>
+    <button id="shareClientsBtn" type="button" onclick="shareClientsReport()">📤 Partilhar</button>
     <button id="downloadClientsBtn" type="button">📄 Guardar ficheiro</button>
   </div>
   <p class="hint">Horas a 100% e extra são somadas por cliente no mês escolhido. Ao abrir, é selecionado automaticamente o último mês com folhas importadas.</p>
@@ -198,17 +199,17 @@
 
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-<script src="app.js?v=3.8.8"></script>
+<script src="app.js?v=3.8.9"></script>
 <script>
 (async()=>{
  if(!('serviceWorker' in navigator) || !location.protocol.startsWith('http')) return;
  try{
-  const reg=await navigator.serviceWorker.register('sw.js?v=3.8.8',{updateViaCache:'none'});
+  const reg=await navigator.serviceWorker.register('sw.js?v=3.8.9',{updateViaCache:'none'});
   await reg.update();
   if(reg.waiting) reg.waiting.postMessage({type:'SKIP_WAITING'});
   navigator.serviceWorker.addEventListener('controllerchange',()=>{
-   if(!sessionStorage.getItem('reloaded-v388')){
-    sessionStorage.setItem('reloaded-v388','1');
+   if(!sessionStorage.getItem('reloaded-v389')){
+    sessionStorage.setItem('reloaded-v389','1');
     location.reload();
    }
   });

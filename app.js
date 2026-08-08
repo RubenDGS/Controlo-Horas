@@ -383,24 +383,9 @@ function downloadClientsReport(){
  document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
  message('Ficheiro das horas criado.','ok');
 }
-async function shareClientsReport(){
- const r=clientsReportText(); if(!r)return;
-
- // A Web Share API só funciona em contexto seguro (HTTPS) e nem todos os browsers/PWA a expõem.
- if(window.isSecureContext && typeof navigator.share==='function'){
-  try{
-   await navigator.share({
-    title:`Horas por cliente - ${r.nome} - ${r.mes}`,
-    text:r.text
-   });
-   message('Partilha concluída.','ok');
-   return;
-  }catch(e){
-   if(e?.name==='AbortError')return;
-  }
- }
-
- // Alternativa sempre visível: abrir um painel com o texto e ações compatíveis.
+function shareClientsReport(){
+ const r=clientsReportText();
+ if(!r)return;
  showClientsShareFallback(r);
 }
 function showClientsShareFallback(r){
@@ -410,7 +395,7 @@ function showClientsShareFallback(r){
   modal.id='clientsShareModal';
   modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10000;display:flex;align-items:center;justify-content:center;padding:16px';
   modal.innerHTML=`<div style="background:white;color:#111;width:min(760px,100%);max-height:90vh;overflow:auto;border-radius:14px;padding:18px">
-   <h3 style="margin-top:0">Partilhar horas por cliente</h3>
+   <h3 style="margin-top:0">Partilhar horas por cliente</h3><p>Escolhe como queres enviar o resumo:</p>
    <p id="clientsShareWho" style="font-weight:600"></p>
    <textarea id="clientsShareText" readonly style="width:100%;min-height:260px;box-sizing:border-box"></textarea>
    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px">
@@ -432,7 +417,9 @@ function showClientsShareFallback(r){
   catch{$('clientsShareText').focus();$('clientsShareText').select();document.execCommand('copy');message('Resumo copiado.','ok')}
  };
  $('clientsWhatsBtn').onclick=()=>{
-  location.href=`https://wa.me/?text=${encodeURIComponent(r.text)}`;
+  const url=`https://wa.me/?text=${encodeURIComponent(r.text)}`;
+  const w=window.open(url,'_blank');
+  if(!w)location.href=url;
  };
  $('clientsMailBtn').onclick=()=>{
   location.href=`mailto:?subject=${encodeURIComponent(`Horas por cliente - ${r.nome} - ${r.mes}`)}&body=${encodeURIComponent(r.text)}`;
@@ -562,7 +549,12 @@ window.showReceiptComparison=function(id,scroll=true){
  for(const x of comparisonRows(r.parsed)){const f=v=>x.unit==='€'?euro(v):`${fmt(v)} h`;h+=`<tr><td>${x.label}</td><td>${f(x.expected)}</td><td>${x.actual==null?'Não encontrado':f(x.actual)}</td><td>${x.diff==null?'—':f(x.diff)}</td><td>${x.ok?'✅':'⚠️'}</td></tr>`}
  h+='</table>';$('receiptComparison').innerHTML=h;if(scroll)$('receiptComparison').scrollIntoView({behavior:'smooth'});
 }
-function renderSettings(){for(const el of $('settingsForm').elements)if(el.name)el.value=db.settings[el.name]??''}
+function renderSettings(){
+ for(const el of $('settingsForm').elements)if(el.name)el.value=db.settings[el.name]??'';
+ const nome=String(db.settings.nomeUtilizador||'').trim();
+ const h=$('headerUserName');
+ if(h)h.textContent=nome?`Utilizador: ${nome}`:'';
+}
 function render(){renderDashboard();renderSheets();renderPayments();renderClients();renderExpenses();renderLeave();renderLocations();renderReceipts();renderSettings()}
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab,.panel').forEach(x=>x.classList.remove('active'));b.classList.add('active');$(b.dataset.tab).classList.add('active')});
 $('fileInput').onchange=async e=>{
@@ -610,7 +602,18 @@ $('receiptForm').onsubmit=async e=>{
 }
 function fileToDataURL(f){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(f)})}
 window.openReceipt=async id=>{const r=db.receipts.find(x=>x.id===id);if(!r)return;if(r.fileKey){const blob=await getStoredFile(r.fileKey);if(blob)window.open(URL.createObjectURL(blob),'_blank')}else if(r.data)window.open(r.data,'_blank')};window.removeReceipt=async id=>{const r=db.receipts.find(x=>x.id===id);if(r?.fileKey)await deleteStoredFile(r.fileKey);db.receipts=db.receipts.filter(x=>x.id!==id);save()};window.removeSheet=async id=>{if(confirm('Apagar esta folha?')){const s=db.sheets.find(x=>x.id===id);if(s?.originalKey)await deleteStoredFile(s.originalKey);db.sheets=db.sheets.filter(x=>x.id!==id);save()}};window.removeExpense=id=>{db.expenses=db.expenses.filter(x=>x.id!==id);save()};window.removeLeave=id=>{db.used=db.used.filter(x=>x.id!==id);save()};
-$('settingsForm').onsubmit=e=>{e.preventDefault();for(const [k,v] of new FormData(e.target))db.settings[k]=k.includes('data')||k.includes('inicio')?v:num(v);db.sheets.forEach(s=>s.compConta=s.dataFinal>db.settings.dataCorte?s.compGerada:0);save();message('Definições guardadas.','ok')};
+$('settingsForm').onsubmit=e=>{
+ e.preventDefault();
+ for(const el of e.target.elements){
+  if(!el.name)continue;
+  if(el.type==='number')db.settings[el.name]=num(el.value);
+  else db.settings[el.name]=el.value;
+ }
+ db.settings.dependentes=Math.max(0,Math.floor(num(db.settings.dependentes)));
+ db.sheets.forEach(s=>s.compConta=s.dataFinal>db.settings.dataCorte?s.compGerada:0);
+ save();
+ message('Definições guardadas.','ok');
+};
 $('backupBtn').onclick=()=>{
  const payload={
   app:'Controlo Horas e Compensações',
@@ -654,7 +657,7 @@ $('restoreInput').onchange=async()=>{
 };
 $('closeMonthBtn').onclick=()=>{const m=$('dashMonth').value;if(!m)return;if(!db.closedMonths.includes(m))db.closedMonths.push(m);save()};$('reopenMonthBtn').onclick=()=>{db.closedMonths=db.closedMonths.filter(x=>x!==$('dashMonth').value);save()};$('printMonthBtn').onclick=()=>window.print();
 $('clearBtn').onclick=()=>{if(confirm('Apagar todos os dados?')){db=clone(defaults);save()}};
-['dashMonth','clientMonth','expenseMonth'].forEach(id=>$(id).onchange=render);$('payYear').onchange=renderPayments;$('sheetSearch').oninput=renderSheets;$('clientFilter').oninput=renderClients;$('shareClientsBtn').onclick=shareClientsReport;$('downloadClientsBtn').onclick=downloadClientsReport;$('locationSearch').oninput=renderLocations;$('locationSource').onchange=renderLocations;
+['dashMonth','clientMonth','expenseMonth'].forEach(id=>$(id).onchange=render);$('payYear').onchange=renderPayments;$('sheetSearch').oninput=renderSheets;$('clientFilter').oninput=renderClients;$('downloadClientsBtn').onclick=downloadClientsReport;$('locationSearch').oninput=renderLocations;$('locationSource').onchange=renderLocations;
 $('globalSearch').oninput=()=>{const q=$('globalSearch').value;if(q.length<2)return;const loc=locations.find(x=>norm(x.name).includes(norm(q))),sheet=db.sheets.find(x=>norm(`${x.cliente} ${x.local} ${x.name}`).includes(norm(q)));if(loc){document.querySelector('[data-tab="locais"]').click();$('locationSearch').value=q;renderLocations()}else if(sheet){document.querySelector('[data-tab="folhas"]').click();$('sheetSearch').value=q;renderSheets()}};
 let installPrompt=null;window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installPrompt=e;$('installBtn').hidden=false});$('installBtn').onclick=async()=>{if(installPrompt){installPrompt.prompt();await installPrompt.userChoice;installPrompt=null;$('installBtn').hidden=true}else alert('No iPhone: Partilhar → Adicionar ao ecrã principal.')};
 function connection(){if(navigator.onLine){$('connectionStatus').textContent='';$('connectionStatus').className=''}else{$('connectionStatus').textContent='📴 Sem internet: os dados continuam guardados neste dispositivo.';$('connectionStatus').className='offline'}}window.addEventListener('online',connection);window.addEventListener('offline',connection);

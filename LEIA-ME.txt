@@ -146,3 +146,13 @@ VERSÃO 3.8.8 — PARTILHA COMPATÍVEL
 - O painel permite Copiar, WhatsApp, Email e Guardar ficheiro.
 - O conteúdo é exatamente a tabela Clientes já apresentada, com nome do utilizador e mês.
 - Não recalcula nem altera horas.
+
+VERSÃO 3.8.9 — PARTILHA + NOME VISÍVEL
+- Mantém os cálculos, folhas, clientes, recibos, resumos, despesas e backups existentes.
+- Corrigido o armazenamento de campos de texto/select nas Definições.
+- O Nome do utilizador passa a ser guardado como texto e aparece por baixo do título/logótipo.
+- O estado civil continua a ser guardado corretamente como opção de texto.
+- O botão Partilhar tem ação direta no próprio HTML.
+- Ao clicar em Partilhar abre SEMPRE um painel dentro da aplicação com: Copiar, WhatsApp, Email e Guardar ficheiro.
+- A partilha usa a tabela Clientes já apresentada, sem recalcular horas.
+- Não é necessário reimportar folhas, recibos ou qualquer outro dado.
