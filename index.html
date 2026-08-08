@@ -10,7 +10,7 @@
   <link rel="apple-touch-icon" href="icon-192.png">
   <link rel="stylesheet" href="styles.css">
 </head>
-<body><div id="appVersion" style="position:fixed;right:6px;bottom:6px;z-index:9999;font-size:11px;background:#fff;border:1px solid #ccc;border-radius:6px;padding:3px 6px;opacity:.85">v3.8.6</div>
+<body><div id="appVersion" style="position:fixed;right:6px;bottom:6px;z-index:9999;font-size:11px;background:#fff;border:1px solid #ccc;border-radius:6px;padding:3px 6px;opacity:.85">v3.8.7</div>
 <header class="appHeader">
   <div class="brand">
     <img class="brandLogo" src="logotipo.png" alt="Logótipo">
@@ -99,7 +99,8 @@
   <div class="toolbar">
     <label>Mês <input id="clientMonth" type="month"></label>
     <input id="clientFilter" placeholder="Filtrar cliente ou local">
-    <button id="shareClientsBtn" type="button">📤 Partilhar horas do mês</button>
+    <button id="shareClientsBtn" type="button">📤 Partilhar</button>
+    <button id="downloadClientsBtn" type="button">📄 Guardar ficheiro</button>
   </div>
   <p class="hint">Horas a 100% e extra são somadas por cliente no mês escolhido. Ao abrir, é selecionado automaticamente o último mês com folhas importadas.</p>
   <div class="tableWrap"><table id="clientsTable"></table></div>
@@ -164,7 +165,7 @@
 
 <section id="definicoes" class="panel">
   <form id="settingsForm" class="formGrid settings">
-    <label>Nome do utilizador<input name="nomeUtilizador" type="text" placeholder="Ex.: João Silva"></label>
+    <label>Nome do utilizador<input name="nomeUtilizador" type="text" placeholder="Nome e apelido"></label>
     <label>Salário base bruto (€)<input name="salarioBase" type="number" step="0.01"></label>
     <label>Segurança Social (%)<input name="taxaSS" type="number" step="0.01"></label>
     <label>Situação familiar
@@ -197,17 +198,17 @@
 
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-<script src="app.js?v=3.8.6"></script>
+<script src="app.js?v=3.8.7"></script>
 <script>
 (async()=>{
  if(!('serviceWorker' in navigator) || !location.protocol.startsWith('http')) return;
  try{
-  const reg=await navigator.serviceWorker.register('sw.js?v=3.8.6',{updateViaCache:'none'});
+  const reg=await navigator.serviceWorker.register('sw.js?v=3.8.7',{updateViaCache:'none'});
   await reg.update();
   if(reg.waiting) reg.waiting.postMessage({type:'SKIP_WAITING'});
   navigator.serviceWorker.addEventListener('controllerchange',()=>{
-   if(!sessionStorage.getItem('reloaded-v386')){
-    sessionStorage.setItem('reloaded-v386','1');
+   if(!sessionStorage.getItem('reloaded-v387')){
+    sessionStorage.setItem('reloaded-v387','1');
     location.reload();
    }
   });

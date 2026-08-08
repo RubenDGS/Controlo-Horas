@@ -359,93 +359,46 @@ function latestSheetMonth(){
  return months.at(-1)||currentMonth();
 }
 
-function clientShareData(m){
- const groups={};
- for(const s of db.sheets){
-  if(monthOf(s.dataFinal)!==m)continue;
-  const key=`${s.cliente||'Sem cliente'}|||${s.local||'Sem local'}`;
-  groups[key]??={client:s.cliente||'Sem cliente',local:s.local||'Sem local',normal:0,h25:0,h125:0,h1375:0,h150:0,h165:0};
-  for(const k of ['normal','h25','h125','h1375','h150','h165'])groups[key][k]+=num(s[k]);
- }
- return Object.values(groups).sort((a,b)=>a.client.localeCompare(b.client)||a.local.localeCompare(b.local));
-}
-function clientShareText(m,rows){
- const nome=String(db.settings.nomeUtilizador||'').trim()||'Utilizador não identificado';
- const [y,mo]=m.split('-');
- const monthLabel=new Intl.DateTimeFormat('pt-PT',{month:'long',year:'numeric'}).format(new Date(Number(y),Number(mo)-1,1));
- const lines=[
-  'CONTROLO DE HORAS POR CLIENTE',
-  `Utilizador: ${nome}`,
-  `Mês: ${monthLabel}`,
-  '',
-  'Cliente | Local | 100% | 25% | 125% | 137,5% | 150% | 165% | Total extra | Total geral'
- ];
- const totals={normal:0,h25:0,h125:0,h1375:0,h150:0,h165:0};
- for(const x of rows){
-  const extra=x.h25+x.h125+x.h1375+x.h150+x.h165,total=x.normal+extra;
-  lines.push(`${x.client} | ${x.local} | ${fmt(x.normal)} | ${fmt(x.h25)} | ${fmt(x.h125)} | ${fmt(x.h1375)} | ${fmt(x.h150)} | ${fmt(x.h165)} | ${fmt(extra)} | ${fmt(total)}`);
-  for(const k of Object.keys(totals))totals[k]+=num(x[k]);
- }
- const extra=totals.h25+totals.h125+totals.h1375+totals.h150+totals.h165;
- lines.push('');
- lines.push(`TOTAL DO MÊS | 100%: ${fmt(totals.normal)} h | 25%: ${fmt(totals.h25)} h | 125%: ${fmt(totals.h125)} h | 137,5%: ${fmt(totals.h1375)} h | 150%: ${fmt(totals.h150)} h | 165%: ${fmt(totals.h165)} h | Extra: ${fmt(extra)} h | Geral: ${fmt(totals.normal+extra)} h`);
- return lines.join('\n');
-}
-function clientShareCsv(m,rows){
- const nome=String(db.settings.nomeUtilizador||'').trim()||'Utilizador não identificado';
- const esc=v=>`"${String(v??'').replace(/"/g,'""')}"`;
- const lines=[
-  ['Utilizador',nome],
-  ['Mês',m],
-  [],
-  ['Cliente','Local','100%','25%','125%','137,5%','150%','165%','Total extra','Total geral']
- ];
- const totals={normal:0,h25:0,h125:0,h1375:0,h150:0,h165:0};
- for(const x of rows){
-  const extra=x.h25+x.h125+x.h1375+x.h150+x.h165,total=x.normal+extra;
-  lines.push([x.client,x.local,x.normal,x.h25,x.h125,x.h1375,x.h150,x.h165,extra,total]);
-  for(const k of Object.keys(totals))totals[k]+=num(x[k]);
- }
- const extra=totals.h25+totals.h125+totals.h1375+totals.h150+totals.h165;
- lines.push([]);
- lines.push(['TOTAL DO MÊS','',totals.normal,totals.h25,totals.h125,totals.h1375,totals.h150,totals.h165,extra,totals.normal+extra]);
- return '\ufeff'+lines.map(r=>r.map(esc).join(';')).join('\r\n');
-}
-async function shareClientMonth(){
- const m=$('clientMonth').value||latestSheetMonth();
- const rows=clientShareData(m);
- if(!rows.length){message('Não existem horas de clientes para partilhar neste mês.','err');return}
+function clientsReportText(){
  const nome=String(db.settings.nomeUtilizador||'').trim();
- if(!nome){message('Preenche primeiro o Nome do utilizador nas Definições.','err');return}
-
- const text=clientShareText(m,rows);
- const csv=clientShareCsv(m,rows);
- const safeName=nome.replace(/[^\p{L}\p{N}]+/gu,'_');
- const file=new File([csv],`horas_clientes_${safeName}_${m}.csv`,{type:'text/csv;charset=utf-8'});
-
+ if(!nome){message('Indica primeiro o Nome do utilizador nas Definições e guarda.','err');return null}
+ const m=$('clientMonth').value||latestSheetMonth();
+ const table=$('clientsTable');
+ const trs=[...table.querySelectorAll('tr')];
+ if(trs.length<2){message('Não existem horas para partilhar neste mês.','err');return null}
+ const [y,mo]=m.split('-');
+ const mes=new Intl.DateTimeFormat('pt-PT',{month:'long',year:'numeric'}).format(new Date(+y,+mo-1,1));
+ const lines=[`HORAS POR CLIENTE`,`Utilizador: ${nome}`,`Mês: ${mes}`,''];
+ for(const tr of trs){
+  const cells=[...tr.querySelectorAll('th,td')].map(c=>c.innerText.trim());
+  if(cells.length)lines.push(cells.join(' | '));
+ }
+ return {nome,m,mes,text:lines.join('\n')};
+}
+function downloadClientsReport(){
+ const r=clientsReportText(); if(!r)return;
+ const blob=new Blob([r.text],{type:'text/plain;charset=utf-8'});
+ const url=URL.createObjectURL(blob),a=document.createElement('a');
+ a.href=url;a.download=`horas_clientes_${r.nome.replace(/[^\p{L}\p{N}]+/gu,'_')}_${r.m}.txt`;
+ document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+ message('Ficheiro das horas criado.','ok');
+}
+async function shareClientsReport(){
+ const r=clientsReportText(); if(!r)return;
  try{
   if(navigator.share){
-   const data={title:`Horas por cliente - ${nome} - ${m}`,text};
-   if(navigator.canShare?.({files:[file]}))data.files=[file];
-   await navigator.share(data);
+   await navigator.share({title:`Horas por cliente - ${r.nome} - ${r.mes}`,text:r.text});
    return;
   }
- }catch(err){
-  if(err?.name==='AbortError')return;
+  if(navigator.clipboard){
+   await navigator.clipboard.writeText(r.text);
+   message('O navegador não abriu a partilha. O resumo foi copiado para poderes colar no WhatsApp ou email.','ok');
+   return;
+  }
+ }catch(e){
+  if(e?.name==='AbortError')return;
  }
-
- try{
-  await navigator.clipboard.writeText(text);
-  const url=URL.createObjectURL(file),a=document.createElement('a');
-  a.href=url;a.download=file.name;document.body.appendChild(a);a.click();a.remove();
-  setTimeout(()=>URL.revokeObjectURL(url),1000);
-  message('Resumo copiado e ficheiro CSV criado para partilhar.','ok');
- }catch{
-  const url=URL.createObjectURL(file),a=document.createElement('a');
-  a.href=url;a.download=file.name;document.body.appendChild(a);a.click();a.remove();
-  setTimeout(()=>URL.revokeObjectURL(url),1000);
-  message('Ficheiro CSV criado para partilhar.','ok');
- }
+ downloadClientsReport();
 }
 
 function renderClients(){
@@ -661,7 +614,7 @@ $('restoreInput').onchange=async()=>{
 };
 $('closeMonthBtn').onclick=()=>{const m=$('dashMonth').value;if(!m)return;if(!db.closedMonths.includes(m))db.closedMonths.push(m);save()};$('reopenMonthBtn').onclick=()=>{db.closedMonths=db.closedMonths.filter(x=>x!==$('dashMonth').value);save()};$('printMonthBtn').onclick=()=>window.print();
 $('clearBtn').onclick=()=>{if(confirm('Apagar todos os dados?')){db=clone(defaults);save()}};
-['dashMonth','clientMonth','expenseMonth'].forEach(id=>$(id).onchange=render);$('payYear').onchange=renderPayments;$('sheetSearch').oninput=renderSheets;$('clientFilter').oninput=renderClients;$('shareClientsBtn').onclick=shareClientMonth;$('locationSearch').oninput=renderLocations;$('locationSource').onchange=renderLocations;
+['dashMonth','clientMonth','expenseMonth'].forEach(id=>$(id).onchange=render);$('payYear').onchange=renderPayments;$('sheetSearch').oninput=renderSheets;$('clientFilter').oninput=renderClients;$('shareClientsBtn').onclick=shareClientsReport;$('downloadClientsBtn').onclick=downloadClientsReport;$('locationSearch').oninput=renderLocations;$('locationSource').onchange=renderLocations;
 $('globalSearch').oninput=()=>{const q=$('globalSearch').value;if(q.length<2)return;const loc=locations.find(x=>norm(x.name).includes(norm(q))),sheet=db.sheets.find(x=>norm(`${x.cliente} ${x.local} ${x.name}`).includes(norm(q)));if(loc){document.querySelector('[data-tab="locais"]').click();$('locationSearch').value=q;renderLocations()}else if(sheet){document.querySelector('[data-tab="folhas"]').click();$('sheetSearch').value=q;renderSheets()}};
 let installPrompt=null;window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installPrompt=e;$('installBtn').hidden=false});$('installBtn').onclick=async()=>{if(installPrompt){installPrompt.prompt();await installPrompt.userChoice;installPrompt=null;$('installBtn').hidden=true}else alert('No iPhone: Partilhar → Adicionar ao ecrã principal.')};
 function connection(){if(navigator.onLine){$('connectionStatus').textContent='';$('connectionStatus').className=''}else{$('connectionStatus').textContent='📴 Sem internet: os dados continuam guardados neste dispositivo.';$('connectionStatus').className='offline'}}window.addEventListener('online',connection);window.addEventListener('offline',connection);
