@@ -138,3 +138,11 @@ VERSÃO 3.8.7 — NOME + PARTILHA CLIENTES
 - Se a partilha nativa não estiver disponível, o texto é copiado para colar no WhatsApp/email.
 - Guardar ficheiro cria um TXT simples com o mesmo conteúdo.
 - Nenhum dado existente é apagado e não é necessário reimportar folhas ou recibos.
+
+VERSÃO 3.8.8 — PARTILHA COMPATÍVEL
+- Mantém todos os dados, cálculos e funcionalidades da 3.8.7.
+- Se a partilha nativa do telemóvel estiver disponível, continua a ser usada.
+- Se não estiver disponível, abre sempre um painel de partilha dentro da aplicação.
+- O painel permite Copiar, WhatsApp, Email e Guardar ficheiro.
+- O conteúdo é exatamente a tabela Clientes já apresentada, com nome do utilizador e mês.
+- Não recalcula nem altera horas.

@@ -1,5 +1,5 @@
-const C='controlo-horas-v3-8-7-partilha-clientes';
-const A=['./','./index.html','./styles.css','./app.js?v=3.8.7','./manifest.webmanifest','./logotipo.png','./icon-192.png','./icon-512.png','./locations.json'];
+const C='controlo-horas-v3-8-8-partilha-compativel';
+const A=['./','./index.html','./styles.css','./app.js?v=3.8.8','./manifest.webmanifest','./logotipo.png','./icon-192.png','./icon-512.png','./locations.json'];
 self.addEventListener('message',e=>{if(e.data?.type==='SKIP_WAITING')self.skipWaiting()});
 self.addEventListener('install',e=>{e.waitUntil(caches.open(C).then(c=>c.addAll(A)));self.skipWaiting()});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==C).map(k=>caches.delete(k)))));self.clients.claim()});

@@ -385,20 +385,60 @@ function downloadClientsReport(){
 }
 async function shareClientsReport(){
  const r=clientsReportText(); if(!r)return;
- try{
-  if(navigator.share){
-   await navigator.share({title:`Horas por cliente - ${r.nome} - ${r.mes}`,text:r.text});
+
+ // A Web Share API só funciona em contexto seguro (HTTPS) e nem todos os browsers/PWA a expõem.
+ if(window.isSecureContext && typeof navigator.share==='function'){
+  try{
+   await navigator.share({
+    title:`Horas por cliente - ${r.nome} - ${r.mes}`,
+    text:r.text
+   });
+   message('Partilha concluída.','ok');
    return;
+  }catch(e){
+   if(e?.name==='AbortError')return;
   }
-  if(navigator.clipboard){
-   await navigator.clipboard.writeText(r.text);
-   message('O navegador não abriu a partilha. O resumo foi copiado para poderes colar no WhatsApp ou email.','ok');
-   return;
-  }
- }catch(e){
-  if(e?.name==='AbortError')return;
  }
- downloadClientsReport();
+
+ // Alternativa sempre visível: abrir um painel com o texto e ações compatíveis.
+ showClientsShareFallback(r);
+}
+function showClientsShareFallback(r){
+ let modal=$('clientsShareModal');
+ if(!modal){
+  modal=document.createElement('div');
+  modal.id='clientsShareModal';
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10000;display:flex;align-items:center;justify-content:center;padding:16px';
+  modal.innerHTML=`<div style="background:white;color:#111;width:min(760px,100%);max-height:90vh;overflow:auto;border-radius:14px;padding:18px">
+   <h3 style="margin-top:0">Partilhar horas por cliente</h3>
+   <p id="clientsShareWho" style="font-weight:600"></p>
+   <textarea id="clientsShareText" readonly style="width:100%;min-height:260px;box-sizing:border-box"></textarea>
+   <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px">
+    <button type="button" id="clientsCopyBtn">📋 Copiar</button>
+    <button type="button" id="clientsWhatsBtn">💬 WhatsApp</button>
+    <button type="button" id="clientsMailBtn">✉️ Email</button>
+    <button type="button" id="clientsFileBtn">📄 Guardar ficheiro</button>
+    <button type="button" id="clientsCloseBtn">Fechar</button>
+   </div>
+  </div>`;
+  document.body.appendChild(modal);
+ }
+ $('clientsShareWho').textContent=`${r.nome} · ${r.mes}`;
+ $('clientsShareText').value=r.text;
+ modal.style.display='flex';
+
+ $('clientsCopyBtn').onclick=async()=>{
+  try{await navigator.clipboard.writeText(r.text);message('Resumo copiado.','ok')}
+  catch{$('clientsShareText').focus();$('clientsShareText').select();document.execCommand('copy');message('Resumo copiado.','ok')}
+ };
+ $('clientsWhatsBtn').onclick=()=>{
+  location.href=`https://wa.me/?text=${encodeURIComponent(r.text)}`;
+ };
+ $('clientsMailBtn').onclick=()=>{
+  location.href=`mailto:?subject=${encodeURIComponent(`Horas por cliente - ${r.nome} - ${r.mes}`)}&body=${encodeURIComponent(r.text)}`;
+ };
+ $('clientsFileBtn').onclick=downloadClientsReport;
+ $('clientsCloseBtn').onclick=()=>modal.style.display='none';
 }
 
 function renderClients(){
