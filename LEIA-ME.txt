@@ -156,3 +156,13 @@ VERSÃO 3.8.9 — PARTILHA + NOME VISÍVEL
 - Ao clicar em Partilhar abre SEMPRE um painel dentro da aplicação com: Copiar, WhatsApp, Email e Guardar ficheiro.
 - A partilha usa a tabela Clientes já apresentada, sem recalcular horas.
 - Não é necessário reimportar folhas, recibos ou qualquer outro dado.
+
+VERSÃO 3.9.0 — PARTILHA PDF A CORES
+- Mantém todos os cálculos, folhas, recibos, clientes, resumos, despesas, definições e backups da 3.8.9.
+- A partilha de Clientes passa a gerar um PDF A4 horizontal a cores.
+- O PDF contém logótipo, nome do utilizador, mês e exatamente a tabela de Clientes apresentada no ecrã.
+- Cabeçalho e linha TOTAL DO MÊS usam as cores da aplicação.
+- Botão “Partilhar PDF” tenta enviar o próprio ficheiro PDF pela partilha do telemóvel.
+- Se o navegador não suportar partilha de ficheiros, o PDF é descarregado automaticamente.
+- Botão “Guardar PDF” guarda diretamente o PDF.
+- A geração do PDF não recalcula nem altera quaisquer horas.

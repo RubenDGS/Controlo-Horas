@@ -359,7 +359,7 @@ function latestSheetMonth(){
  return months.at(-1)||currentMonth();
 }
 
-function clientsReportText(){
+function clientsPdfInfo(){
  const nome=String(db.settings.nomeUtilizador||'').trim();
  if(!nome){message('Indica primeiro o Nome do utilizador nas Definições e guarda.','err');return null}
  const m=$('clientMonth').value||latestSheetMonth();
@@ -368,64 +368,109 @@ function clientsReportText(){
  if(trs.length<2){message('Não existem horas para partilhar neste mês.','err');return null}
  const [y,mo]=m.split('-');
  const mes=new Intl.DateTimeFormat('pt-PT',{month:'long',year:'numeric'}).format(new Date(+y,+mo-1,1));
- const lines=[`HORAS POR CLIENTE`,`Utilizador: ${nome}`,`Mês: ${mes}`,''];
- for(const tr of trs){
-  const cells=[...tr.querySelectorAll('th,td')].map(c=>c.innerText.trim());
-  if(cells.length)lines.push(cells.join(' | '));
+ return {nome,m,mes,table};
+}
+function imageToDataUrl(src){
+ return new Promise((resolve)=>{
+  const img=new Image();
+  img.onload=()=>{
+   try{
+    const c=document.createElement('canvas');
+    c.width=img.naturalWidth||img.width;c.height=img.naturalHeight||img.height;
+    c.getContext('2d').drawImage(img,0,0);
+    resolve(c.toDataURL('image/png'));
+   }catch{resolve(null)}
+  };
+  img.onerror=()=>resolve(null);
+  img.src=src;
+ });
+}
+async function buildClientsPdf(){
+ const info=clientsPdfInfo(); if(!info)return null;
+ if(!window.jspdf?.jsPDF){
+  message('O gerador de PDF ainda não carregou. Confirma a ligação à Internet e tenta novamente.','err');
+  return null;
  }
- return {nome,m,mes,text:lines.join('\n')};
-}
-function downloadClientsReport(){
- const r=clientsReportText(); if(!r)return;
- const blob=new Blob([r.text],{type:'text/plain;charset=utf-8'});
- const url=URL.createObjectURL(blob),a=document.createElement('a');
- a.href=url;a.download=`horas_clientes_${r.nome.replace(/[^\p{L}\p{N}]+/gu,'_')}_${r.m}.txt`;
- document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
- message('Ficheiro das horas criado.','ok');
-}
-function shareClientsReport(){
- const r=clientsReportText();
- if(!r)return;
- showClientsShareFallback(r);
-}
-function showClientsShareFallback(r){
- let modal=$('clientsShareModal');
- if(!modal){
-  modal=document.createElement('div');
-  modal.id='clientsShareModal';
-  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10000;display:flex;align-items:center;justify-content:center;padding:16px';
-  modal.innerHTML=`<div style="background:white;color:#111;width:min(760px,100%);max-height:90vh;overflow:auto;border-radius:14px;padding:18px">
-   <h3 style="margin-top:0">Partilhar horas por cliente</h3><p>Escolhe como queres enviar o resumo:</p>
-   <p id="clientsShareWho" style="font-weight:600"></p>
-   <textarea id="clientsShareText" readonly style="width:100%;min-height:260px;box-sizing:border-box"></textarea>
-   <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px">
-    <button type="button" id="clientsCopyBtn">📋 Copiar</button>
-    <button type="button" id="clientsWhatsBtn">💬 WhatsApp</button>
-    <button type="button" id="clientsMailBtn">✉️ Email</button>
-    <button type="button" id="clientsFileBtn">📄 Guardar ficheiro</button>
-    <button type="button" id="clientsCloseBtn">Fechar</button>
-   </div>
-  </div>`;
-  document.body.appendChild(modal);
- }
- $('clientsShareWho').textContent=`${r.nome} · ${r.mes}`;
- $('clientsShareText').value=r.text;
- modal.style.display='flex';
+ const {jsPDF}=window.jspdf;
+ const doc=new jsPDF({orientation:'landscape',unit:'mm',format:'a4'});
+ const brand=[11,94,117],dark=[7,63,80],soft=[233,245,247];
 
- $('clientsCopyBtn').onclick=async()=>{
-  try{await navigator.clipboard.writeText(r.text);message('Resumo copiado.','ok')}
-  catch{$('clientsShareText').focus();$('clientsShareText').select();document.execCommand('copy');message('Resumo copiado.','ok')}
- };
- $('clientsWhatsBtn').onclick=()=>{
-  const url=`https://wa.me/?text=${encodeURIComponent(r.text)}`;
-  const w=window.open(url,'_blank');
-  if(!w)location.href=url;
- };
- $('clientsMailBtn').onclick=()=>{
-  location.href=`mailto:?subject=${encodeURIComponent(`Horas por cliente - ${r.nome} - ${r.mes}`)}&body=${encodeURIComponent(r.text)}`;
- };
- $('clientsFileBtn').onclick=downloadClientsReport;
- $('clientsCloseBtn').onclick=()=>modal.style.display='none';
+ // Cabeçalho colorido
+ doc.setFillColor(...brand);doc.rect(0,0,297,31,'F');
+ const logo=await imageToDataUrl('logotipo.png');
+ if(logo){
+  try{doc.addImage(logo,'PNG',12,6,48,18,undefined,'FAST')}catch{}
+ }
+ doc.setTextColor(255,255,255);
+ doc.setFont('helvetica','bold');doc.setFontSize(17);
+ doc.text('Horas por Cliente',68,13);
+ doc.setFont('helvetica','normal');doc.setFontSize(10.5);
+ doc.text(`Utilizador: ${info.nome}`,68,20);
+ doc.text(`Mês: ${info.mes}`,68,26);
+
+ // Converter exatamente a tabela visível de Clientes em dados para PDF.
+ const trs=[...info.table.querySelectorAll('tr')];
+ const head=[...trs[0].querySelectorAll('th,td')].map(c=>c.innerText.trim());
+ const body=trs.slice(1).map(tr=>[...tr.querySelectorAll('th,td')].map(c=>c.innerText.trim()));
+
+ doc.autoTable({
+  head:[head],
+  body,
+  startY:37,
+  margin:{left:8,right:8},
+  theme:'grid',
+  styles:{font:'helvetica',fontSize:7.3,cellPadding:2.2,textColor:dark,lineColor:[213,228,232],lineWidth:.2,halign:'center',valign:'middle'},
+  headStyles:{fillColor:soft,textColor:dark,fontStyle:'bold',lineColor:brand,lineWidth:.25},
+  alternateRowStyles:{fillColor:[248,251,252]},
+  columnStyles:{0:{halign:'left',cellWidth:35},1:{halign:'left',cellWidth:30}},
+  didParseCell:(data)=>{
+   if(data.section==='body' && data.row.raw?.[0]?.toString().includes('TOTAL DO MÊS')){
+    data.cell.styles.fillColor=brand;
+    data.cell.styles.textColor=[255,255,255];
+    data.cell.styles.fontStyle='bold';
+   }
+  }
+ });
+
+ const y=Math.min(199,(doc.lastAutoTable?.finalY||40)+8);
+ doc.setDrawColor(...brand);doc.line(8,y,289,y);
+ doc.setTextColor(95,119,128);doc.setFontSize(7.5);doc.setFont('helvetica','normal');
+ doc.text('Gerado pela aplicação Controlo Horas e Compensações',8,y+5);
+ doc.text(`Data: ${new Intl.DateTimeFormat('pt-PT').format(new Date())}`,289,y+5,{align:'right'});
+
+ return {doc,info};
+}
+async function downloadClientsPdf(){
+ const built=await buildClientsPdf();if(!built)return;
+ const safe=built.info.nome.replace(/[^\p{L}\p{N}]+/gu,'_');
+ built.doc.save(`horas_clientes_${safe}_${built.info.m}.pdf`);
+ message('PDF das horas criado.','ok');
+}
+async function shareClientsPdf(){
+ const built=await buildClientsPdf();if(!built)return;
+ const blob=built.doc.output('blob');
+ const safe=built.info.nome.replace(/[^\p{L}\p{N}]+/gu,'_');
+ const file=new File([blob],`horas_clientes_${safe}_${built.info.m}.pdf`,{type:'application/pdf'});
+
+ // Primeiro tenta partilhar o PDF diretamente no telemóvel.
+ try{
+  if(window.isSecureContext && typeof navigator.share==='function' && (!navigator.canShare || navigator.canShare({files:[file]}))){
+   await navigator.share({
+    title:`Horas por cliente - ${built.info.nome} - ${built.info.mes}`,
+    text:`Horas por cliente - ${built.info.nome} - ${built.info.mes}`,
+    files:[file]
+   });
+   return;
+  }
+ }catch(e){
+  if(e?.name==='AbortError')return;
+ }
+
+ // Se o browser não suportar ficheiros na partilha, guarda o PDF para o utilizador o enviar.
+ const url=URL.createObjectURL(blob),a=document.createElement('a');
+ a.href=url;a.download=file.name;document.body.appendChild(a);a.click();a.remove();
+ setTimeout(()=>URL.revokeObjectURL(url),1000);
+ message('O PDF foi guardado. O navegador deste dispositivo não permite enviá-lo diretamente pela partilha.','ok');
 }
 
 function renderClients(){
@@ -657,7 +702,7 @@ $('restoreInput').onchange=async()=>{
 };
 $('closeMonthBtn').onclick=()=>{const m=$('dashMonth').value;if(!m)return;if(!db.closedMonths.includes(m))db.closedMonths.push(m);save()};$('reopenMonthBtn').onclick=()=>{db.closedMonths=db.closedMonths.filter(x=>x!==$('dashMonth').value);save()};$('printMonthBtn').onclick=()=>window.print();
 $('clearBtn').onclick=()=>{if(confirm('Apagar todos os dados?')){db=clone(defaults);save()}};
-['dashMonth','clientMonth','expenseMonth'].forEach(id=>$(id).onchange=render);$('payYear').onchange=renderPayments;$('sheetSearch').oninput=renderSheets;$('clientFilter').oninput=renderClients;$('downloadClientsBtn').onclick=downloadClientsReport;$('locationSearch').oninput=renderLocations;$('locationSource').onchange=renderLocations;
+['dashMonth','clientMonth','expenseMonth'].forEach(id=>$(id).onchange=render);$('payYear').onchange=renderPayments;$('sheetSearch').oninput=renderSheets;$('clientFilter').oninput=renderClients;$('downloadClientsBtn').onclick=downloadClientsPdf;$('locationSearch').oninput=renderLocations;$('locationSource').onchange=renderLocations;
 $('globalSearch').oninput=()=>{const q=$('globalSearch').value;if(q.length<2)return;const loc=locations.find(x=>norm(x.name).includes(norm(q))),sheet=db.sheets.find(x=>norm(`${x.cliente} ${x.local} ${x.name}`).includes(norm(q)));if(loc){document.querySelector('[data-tab="locais"]').click();$('locationSearch').value=q;renderLocations()}else if(sheet){document.querySelector('[data-tab="folhas"]').click();$('sheetSearch').value=q;renderSheets()}};
 let installPrompt=null;window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installPrompt=e;$('installBtn').hidden=false});$('installBtn').onclick=async()=>{if(installPrompt){installPrompt.prompt();await installPrompt.userChoice;installPrompt=null;$('installBtn').hidden=true}else alert('No iPhone: Partilhar → Adicionar ao ecrã principal.')};
 function connection(){if(navigator.onLine){$('connectionStatus').textContent='';$('connectionStatus').className=''}else{$('connectionStatus').textContent='📴 Sem internet: os dados continuam guardados neste dispositivo.';$('connectionStatus').className='offline'}}window.addEventListener('online',connection);window.addEventListener('offline',connection);
