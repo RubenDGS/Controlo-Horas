@@ -528,8 +528,47 @@ $('receiptForm').onsubmit=async e=>{
 function fileToDataURL(f){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(f)})}
 window.openReceipt=async id=>{const r=db.receipts.find(x=>x.id===id);if(!r)return;if(r.fileKey){const blob=await getStoredFile(r.fileKey);if(blob)window.open(URL.createObjectURL(blob),'_blank')}else if(r.data)window.open(r.data,'_blank')};window.removeReceipt=async id=>{const r=db.receipts.find(x=>x.id===id);if(r?.fileKey)await deleteStoredFile(r.fileKey);db.receipts=db.receipts.filter(x=>x.id!==id);save()};window.removeSheet=async id=>{if(confirm('Apagar esta folha?')){const s=db.sheets.find(x=>x.id===id);if(s?.originalKey)await deleteStoredFile(s.originalKey);db.sheets=db.sheets.filter(x=>x.id!==id);save()}};window.removeExpense=id=>{db.expenses=db.expenses.filter(x=>x.id!==id);save()};window.removeLeave=id=>{db.used=db.used.filter(x=>x.id!==id);save()};
 $('settingsForm').onsubmit=e=>{e.preventDefault();for(const [k,v] of new FormData(e.target))db.settings[k]=k.includes('data')||k.includes('inicio')?v:num(v);db.sheets.forEach(s=>s.compConta=s.dataFinal>db.settings.dataCorte?s.compGerada:0);save();message('Definições guardadas.','ok')};
-$('backupBtn').onclick=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(db)],{type:'application/json'}));a.download=`controlo_horas_${today()}.json`;a.click();URL.revokeObjectURL(a.href)};
-$('restoreBtn').onclick=()=>$('restoreInput').click();$('restoreInput').onchange=async()=>{try{db={...clone(defaults),...JSON.parse(await $('restoreInput').files[0].text())};save();message('Backup restaurado.','ok')}catch{message('Backup inválido.','err')}};
+$('backupBtn').onclick=()=>{
+ const payload={
+  app:'Controlo Horas e Compensações',
+  backupVersion:1,
+  createdAt:new Date().toISOString(),
+  data:db
+ };
+ const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+ const url=URL.createObjectURL(blob),a=document.createElement('a');
+ a.href=url;
+ a.download=`controlo_horas_backup_${today()}.json`;
+ document.body.appendChild(a);a.click();a.remove();
+ setTimeout(()=>URL.revokeObjectURL(url),1000);
+ message(`Cópia de segurança criada: ${db.sheets.length} folhas, ${db.receipts.length} recibos e todas as definições.`,'ok');
+};
+$('restoreBtn').onclick=()=>$('restoreInput').click();
+$('restoreInput').onchange=async()=>{
+ const f=$('restoreInput').files?.[0];
+ if(!f)return;
+ try{
+  const raw=JSON.parse(await f.text());
+  const incoming=raw?.data&&raw?.backupVersion?raw.data:raw;
+  if(!incoming||typeof incoming!=='object'||!Array.isArray(incoming.sheets))throw new Error('Formato inválido');
+  const ok=confirm(`Restaurar esta cópia de segurança?\n\nFolhas: ${incoming.sheets.length}\nRecibos: ${Array.isArray(incoming.receipts)?incoming.receipts.length:0}\n\nOs dados atuais serão substituídos pelos dados desta cópia.`);
+  if(!ok){$('restoreInput').value='';return}
+  db={
+   ...clone(defaults),
+   ...incoming,
+   settings:{...defaults.settings,...(incoming.settings||{})},
+   sheets:Array.isArray(incoming.sheets)?incoming.sheets:[],
+   used:Array.isArray(incoming.used)?incoming.used:[],
+   payments:Array.isArray(incoming.payments)?incoming.payments:[],
+   expenses:Array.isArray(incoming.expenses)?incoming.expenses:[],
+   receipts:Array.isArray(incoming.receipts)?incoming.receipts:[],
+   closedMonths:Array.isArray(incoming.closedMonths)?incoming.closedMonths:[]
+  };
+  save();
+  message(`Cópia restaurada: ${db.sheets.length} folhas e ${db.receipts.length} recibos.`,'ok');
+ }catch(err){message('Cópia de segurança inválida. Nenhum dado foi alterado.','err')}
+ finally{$('restoreInput').value=''}
+};
 $('closeMonthBtn').onclick=()=>{const m=$('dashMonth').value;if(!m)return;if(!db.closedMonths.includes(m))db.closedMonths.push(m);save()};$('reopenMonthBtn').onclick=()=>{db.closedMonths=db.closedMonths.filter(x=>x!==$('dashMonth').value);save()};$('printMonthBtn').onclick=()=>window.print();
 $('clearBtn').onclick=()=>{if(confirm('Apagar todos os dados?')){db=clone(defaults);save()}};
 ['dashMonth','clientMonth','expenseMonth'].forEach(id=>$(id).onchange=render);$('payYear').onchange=renderPayments;$('sheetSearch').oninput=renderSheets;$('clientFilter').oninput=renderClients;$('locationSearch').oninput=renderLocations;$('locationSource').onchange=renderLocations;

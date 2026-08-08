@@ -119,3 +119,12 @@ VERSÃO 3.8.4 — SITUAÇÃO FAMILIAR E DEPENDENTES
 - O cálculo estimado de IRS usa as tabelas de retenção na fonte do Continente para 2026.
 - Não altera folhas, clientes, resumos, recibos, despesas ou mapas.
 - Não é necessário voltar a importar as folhas.
+
+VERSÃO 3.8.5 — BACKUP/RESTAURO SEGURO
+- Mantém integralmente os cálculos e funcionalidades da 3.8.4.
+- Melhorados apenas os botões de cópia de segurança e restauro.
+- O backup inclui os dados da aplicação: folhas registadas, recibos, definições, despesas, compensações e meses fechados.
+- Antes de restaurar, a aplicação mostra quantas folhas e recibos existem no ficheiro e pede confirmação.
+- Um ficheiro inválido não altera os dados existentes.
+- Esta atualização não apaga nem exige voltar a importar os dados atuais.
+Nota: os ficheiros Excel originais guardados no armazenamento do navegador não são incorporados no JSON; os registos e totais das folhas são incluídos.
