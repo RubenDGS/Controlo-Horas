@@ -173,3 +173,12 @@ VERSÃO 3.9.1 — TOTAIS DO PDF ALINHADOS
 - O PDF passa a respeitar o colspan da tabela da aplicação.
 - Assim, cada total fica debaixo da coluna correta: Folhas, 100%, 25%, 125%, 137,5%, 150%, 165%, Total extra e Total geral.
 - Nenhuma hora é recalculada e nenhum dado existente é alterado.
+
+VERSÃO 3.9.2 — NOME VISÍVEL + POUPANÇA ANUAL
+- Mantém integralmente os cálculos, folhas, recibos, clientes, resumos, PDF, backups e restantes funcionalidades da 3.9.1.
+- O nome do utilizador fica visível junto ao logótipo/título sempre que a aplicação é aberta.
+- Em Recebimentos foi acrescentado “Total poupado nas despesas”.
+- Esta poupança anual soma apenas os meses do ano selecionado em que existem despesas efetivamente registadas.
+- Assim, meses anteriores sem despesas introduzidas não entram na poupança.
+- O cartão mostra automaticamente desde que mês existem despesas registadas.
+- Não é necessário reimportar folhas, recibos ou despesas.

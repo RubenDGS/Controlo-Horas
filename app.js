@@ -353,7 +353,45 @@ function renderAnnual(){
  $('annualTable').innerHTML=h;
 }
 function renderSheets(){const q=norm($('sheetSearch').value);let h='<tr><th>Ficheiro</th><th>Período</th><th>Cliente</th><th>Local</th><th>100%</th><th>Extra</th><th>Ajudas</th><th>Aloj.</th><th></th></tr>';for(const s of [...db.sheets].sort((a,b)=>b.dataFinal.localeCompare(a.dataFinal))){if(q&&!norm(`${s.name} ${s.cliente} ${s.local} ${s.processo}`).includes(q))continue;const ex=num(s.h25)+num(s.h125)+num(s.h1375)+num(s.h150)+num(s.h165);h+=`<tr><td>${s.name}</td><td>${s.dataInicial}<br>${s.dataFinal}</td><td>${s.cliente}</td><td>${s.local}</td><td>${fmt(s.normal)} h</td><td>${fmt(ex)} h</td><td>${fmt(s.diasAjuda)} dias</td><td>${fmt(s.diasAloj)} dias</td><td>${s.originalKey?`<button onclick="downloadStoredFile('${s.originalKey}','${String(s.name).replace(/'/g,"&#39;")}')">Abrir original</button> `:''}<button onclick="removeSheet('${s.id}')">Apagar</button></td></tr>`}$('sheetsTable').innerHTML=h}
-function renderPayments(){const years=[...new Set(allMonths().map(m=>m.slice(0,4)))].sort().reverse(),sel=$('payYear').value||years[0]||String(new Date().getFullYear());$('payYear').innerHTML=years.map(y=>`<option ${y===sel?'selected':''}>${y}</option>`).join('');let sums={net:0,travel:0,lodging:0,meal:0},h='<tr><th>Mês</th><th>Bruto</th><th>SS</th><th>IRS</th><th>Líquido recibo</th><th>Ajudas</th><th>Alojamento</th><th>Subs. refeição</th><th>Recibo</th></tr>';for(const m of allMonths().filter(x=>x.startsWith(sel)).reverse()){const p=salaryMonth(m),receipt=db.receipts.find(r=>r.month===m);sums.net+=p.net;sums.travel+=p.travel;sums.lodging+=p.lodging;sums.meal+=mealDays(m)*db.settings.refeicaoDia;h+=`<tr><td>${m}</td><td>${euro(p.gross)}</td><td>- ${euro(p.ss)}</td><td>- ${euro(p.irs)}</td><td><strong>${euro(p.net)}</strong></td><td>${euro(p.travel)}</td><td>${euro(p.lodging)}</td><td>${euro(mealDays(m)*db.settings.refeicaoDia)}</td><td>${receipt?'✅':'⚠️ falta'}</td></tr>`}$('yearNet').textContent=euro(sums.net);$('yearTravel').textContent=euro(sums.travel);$('yearLodging').textContent=euro(sums.lodging);$('yearMeal').textContent=euro(sums.meal);$('paymentsTable').innerHTML=h}
+function renderPayments(){
+ const years=[...new Set(allMonths().map(m=>m.slice(0,4)))].sort().reverse(),
+ sel=$('payYear').value||years[0]||String(new Date().getFullYear());
+ $('payYear').innerHTML=years.map(y=>`<option ${y===sel?'selected':''}>${y}</option>`).join('');
+
+ let sums={net:0,travel:0,lodging:0,meal:0,saved:0},
+ h='<tr><th>Mês</th><th>Bruto</th><th>SS</th><th>IRS</th><th>Líquido recibo</th><th>Ajudas</th><th>Alojamento</th><th>Subs. refeição</th><th>Recibo</th></tr>';
+
+ const months=allMonths().filter(x=>x.startsWith(sel)).reverse();
+ for(const m of months){
+  const p=salaryMonth(m),receipt=db.receipts.find(r=>r.month===m);
+  sums.net+=p.net;sums.travel+=p.travel;sums.lodging+=p.lodging;sums.meal+=mealDays(m)*db.settings.refeicaoDia;
+
+  // A poupança anual conta apenas meses onde foram efetivamente inseridas despesas.
+  if(db.expenses.some(x=>monthOf(x.date)===m)){
+   sums.saved+=expenseSummary(m).remain;
+  }
+
+  h+=`<tr><td>${m}</td><td>${euro(p.gross)}</td><td>- ${euro(p.ss)}</td><td>- ${euro(p.irs)}</td><td><strong>${euro(p.net)}</strong></td><td>${euro(p.travel)}</td><td>${euro(p.lodging)}</td><td>${euro(mealDays(m)*db.settings.refeicaoDia)}</td><td>${receipt?'✅':'⚠️ falta'}</td></tr>`;
+ }
+
+ $('yearNet').textContent=euro(sums.net);
+ $('yearTravel').textContent=euro(sums.travel);
+ $('yearLodging').textContent=euro(sums.lodging);
+ $('yearMeal').textContent=euro(sums.meal);
+ $('yearSaved').textContent=euro(sums.saved);
+
+ const expenseMonths=[...new Set(db.expenses.map(x=>monthOf(x.date)).filter(m=>m&&m.startsWith(sel)))].sort();
+ if(expenseMonths.length){
+  const first=expenseMonths[0];
+  const [y,mo]=first.split('-');
+  const label=new Intl.DateTimeFormat('pt-PT',{month:'short',year:'numeric'}).format(new Date(+y,+mo-1,1));
+  $('yearSavedLabel').textContent=`Total poupado nas despesas (desde ${label})`;
+ }else{
+  $('yearSavedLabel').textContent='Total poupado nas despesas';
+ }
+
+ $('paymentsTable').innerHTML=h;
+}
 function latestSheetMonth(){
  const months=db.sheets.flatMap(s=>Array.isArray(s.entries)&&s.entries.length?s.entries.map(e=>monthOf(e.date)):[monthOf(s.dataFinal)]).filter(Boolean).sort();
  return months.at(-1)||currentMonth();
@@ -609,7 +647,7 @@ function renderSettings(){
  for(const el of $('settingsForm').elements)if(el.name)el.value=db.settings[el.name]??'';
  const nome=String(db.settings.nomeUtilizador||'').trim();
  const h=$('headerUserName');
- if(h)h.textContent=nome?`Utilizador: ${nome}`:'';
+ if(h)h.textContent=nome?`👤 ${nome}`:'';
 }
 function render(){renderDashboard();renderSheets();renderPayments();renderClients();renderExpenses();renderLeave();renderLocations();renderReceipts();renderSettings()}
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab,.panel').forEach(x=>x.classList.remove('active'));b.classList.add('active');$(b.dataset.tab).classList.add('active')});
