@@ -7,7 +7,7 @@ async function deleteStoredFile(key){const db=await fileDb();return new Promise(
 async function downloadStoredFile(key,name){const blob=await getStoredFile(key);if(!blob){alert('O ficheiro original não está disponível neste dispositivo.');return}const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000)}
 
 const $=id=>document.getElementById(id);
-const defaults={settings:{salarioBase:1500,taxaSS:11,valorHora:8.65,ajudaDia:90,alojDia:65,refeicaoDia:10.46,inicioDespesas:'2027-01-01',saldoInicial:41,dataCorte:'2026-07-25',diasFeriasAnuais:22,primeiroAnoFerias:2027,m25:.25,m125:1.25,m1375:1.375,m150:1.5,m165:1.65},sheets:[],used:[],payments:[],expenses:[],receipts:[],closedMonths:[]};
+const defaults={settings:{salarioBase:1500,taxaSS:11,valorHora:8.65,estadoCivil:'solteiro',dependentes:0,ajudaDia:90,alojDia:65,refeicaoDia:10.46,inicioDespesas:'2027-01-01',saldoInicial:41,dataCorte:'2026-07-25',diasFeriasAnuais:22,primeiroAnoFerias:2027,m25:.25,m125:1.25,m1375:1.375,m150:1.5,m165:1.65},sheets:[],used:[],payments:[],expenses:[],receipts:[],closedMonths:[]};
 let db=load(),locations=[],pendingImports=[];
 (function repairSalarySettings(){
  let changed=false;
@@ -177,7 +177,49 @@ function overtimeValue(g){
   num(g.h165)*1.65
  );
 }
-function irs2026(R){R=Math.max(0,num(R));let t=0,a=0;if(R<=920){}else if(R<=1042){t=.125;a=.125*2.6*(1273.85-R)}else if(R<=1108){t=.157;a=.157*1.35*(1554.83-R)}else if(R<=1154){t=.157;a=94.71}else if(R<=1212){t=.212;a=158.18}else if(R<=1819){t=.241;a=193.33}else if(R<=2119){t=.311;a=320.66}else if(R<=2499){t=.349;a=401.19}else if(R<=3305){t=.3836;a=487.66}else if(R<=5547){t=.3969;a=531.62}else if(R<=20221){t=.4495;a=823.4}else{t=.4717;a=1272.31}const v=Math.max(0,R*t-a);return{value:v,effective:R?v/R:0}}
+function irs2026(R){
+ R=Math.max(0,num(R));
+ const dep=Math.max(0,Math.floor(num(db.settings.dependentes)));
+ const estado=db.settings.estadoCivil||'solteiro';
+
+ let t=0,a=0,depAbate=0;
+
+ // Tabela III - casado, único titular.
+ if(estado==='casado1'){
+  depAbate=42.86;
+  if(R<=991){t=0;a=0}
+  else if(R<=1042){t=.125;a=.125*2.6*(1372.15-R)}
+  else if(R<=1108){t=.125;a=.125*1.35*(1677.85-R)}
+  else if(R<=1119){t=.125;a=96.17}
+  else if(R<=1432){t=.1272;a=98.64}
+  else if(R<=1962){t=.157;a=141.32}
+  else if(R<=2240){t=.1938;a=213.53}
+  else if(R<=2773){t=.2277;a=289.47}
+  else if(R<=3389){t=.257;a=370.72}
+  else if(R<=5965){t=.2881;a=476.12}
+  else if(R<=20265){t=.3843;a=1049.96}
+  else{t=.4717;a=2821.13}
+ }else{
+  // Tabela I: não casado sem dependentes ou casado 2 titulares.
+  // Tabela II: não casado com um ou mais dependentes.
+  depAbate=(estado==='solteiro'&&dep>0)?34.29:21.43;
+  if(R<=920){t=0;a=0;depAbate=0}
+  else if(R<=1042){t=.125;a=.125*2.6*(1273.85-R)}
+  else if(R<=1108){t=.157;a=.157*1.35*(1554.83-R)}
+  else if(R<=1154){t=.157;a=94.71}
+  else if(R<=1212){t=.212;a=158.18}
+  else if(R<=1819){t=.241;a=193.33}
+  else if(R<=2119){t=.311;a=320.66}
+  else if(R<=2499){t=.349;a=401.19}
+  else if(R<=3305){t=.3836;a=487.66}
+  else if(R<=5547){t=.3969;a=531.62}
+  else if(R<=20221){t=.4495;a=823.40}
+  else{t=.4717;a=1272.31}
+ }
+
+ const v=Math.max(0,R*t-a-depAbate*dep);
+ return{value:v,effective:R?v/R:0};
+}
 function sheetsForMonth(m){return db.sheets.filter(s=>monthOf(s.dataFinal)===m||s.entries?.some(e=>monthOf(e.date)===m))}
 function monthGroup(m){
  const g={normal:0,h25:0,h125:0,h1375:0,h150:0,h165:0,travelDays:0,lodgingDays:0,travel:0,lodging:0,comp:0};

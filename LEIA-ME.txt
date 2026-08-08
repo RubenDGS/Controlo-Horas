@@ -108,3 +108,14 @@ VERSÃO 3.8.3 — ATUALIZAÇÃO FORÇADA
 - Mostra “v3.8.3” no canto inferior direito para confirmar a versão realmente aberta.
 - Não apaga folhas, recibos, despesas, configurações nem outros dados.
 - O líquido apresentado fica limitado a valores mensais plausíveis até 5 000 €.
+
+
+VERSÃO 3.8.4 — SITUAÇÃO FAMILIAR E DEPENDENTES
+- Acrescentadas opções nas Definições:
+  * Não casado
+  * Casado - 2 titulares
+  * Casado - único titular
+  * Número de dependentes
+- O cálculo estimado de IRS usa as tabelas de retenção na fonte do Continente para 2026.
+- Não altera folhas, clientes, resumos, recibos, despesas ou mapas.
+- Não é necessário voltar a importar as folhas.
