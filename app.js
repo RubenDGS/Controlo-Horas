@@ -408,10 +408,20 @@ async function buildClientsPdf(){
  doc.text(`Utilizador: ${info.nome}`,68,20);
  doc.text(`Mês: ${info.mes}`,68,26);
 
- // Converter exatamente a tabela visível de Clientes em dados para PDF.
+ // Converter a tabela visível de Clientes em dados para PDF,
+ // respeitando colspan para que a linha TOTAL DO MÊS fique alinhada com as colunas.
  const trs=[...info.table.querySelectorAll('tr')];
- const head=[...trs[0].querySelectorAll('th,td')].map(c=>c.innerText.trim());
- const body=trs.slice(1).map(tr=>[...tr.querySelectorAll('th,td')].map(c=>c.innerText.trim()));
+ const expandRow=(tr)=>{
+  const out=[];
+  for(const c of tr.querySelectorAll('th,td')){
+   const span=Math.max(1,Number(c.getAttribute('colspan')||1));
+   out.push(c.innerText.trim());
+   for(let i=1;i<span;i++)out.push('');
+  }
+  return out;
+ };
+ const head=expandRow(trs[0]);
+ const body=trs.slice(1).map(expandRow);
 
  doc.autoTable({
   head:[head],
@@ -424,7 +434,8 @@ async function buildClientsPdf(){
   alternateRowStyles:{fillColor:[248,251,252]},
   columnStyles:{0:{halign:'left',cellWidth:35},1:{halign:'left',cellWidth:30}},
   didParseCell:(data)=>{
-   if(data.section==='body' && data.row.raw?.[0]?.toString().includes('TOTAL DO MÊS')){
+   const first=Array.isArray(data.row.raw)?String(data.row.raw[0]||''):'';
+   if(data.section==='body' && first.includes('TOTAL DO MÊS')){
     data.cell.styles.fillColor=brand;
     data.cell.styles.textColor=[255,255,255];
     data.cell.styles.fontStyle='bold';

@@ -166,3 +166,10 @@ VERSÃO 3.9.0 — PARTILHA PDF A CORES
 - Se o navegador não suportar partilha de ficheiros, o PDF é descarregado automaticamente.
 - Botão “Guardar PDF” guarda diretamente o PDF.
 - A geração do PDF não recalcula nem altera quaisquer horas.
+
+VERSÃO 3.9.1 — TOTAIS DO PDF ALINHADOS
+- Mantém integralmente os dados, cálculos e funcionalidades da versão 3.9.0.
+- Corrige apenas a disposição da linha TOTAL DO MÊS no PDF de Clientes.
+- O PDF passa a respeitar o colspan da tabela da aplicação.
+- Assim, cada total fica debaixo da coluna correta: Folhas, 100%, 25%, 125%, 137,5%, 150%, 165%, Total extra e Total geral.
+- Nenhuma hora é recalculada e nenhum dado existente é alterado.
