@@ -128,3 +128,13 @@ VERSÃO 3.8.5 — BACKUP/RESTAURO SEGURO
 - Um ficheiro inválido não altera os dados existentes.
 - Esta atualização não apaga nem exige voltar a importar os dados atuais.
 Nota: os ficheiros Excel originais guardados no armazenamento do navegador não são incorporados no JSON; os registos e totais das folhas são incluídos.
+
+VERSÃO 3.8.6 — NOME E PARTILHA DE HORAS POR CLIENTE
+- Mantém integralmente os cálculos e funcionalidades da versão 3.8.5.
+- Novo campo “Nome do utilizador” nas Definições.
+- Novo botão “Partilhar horas do mês” na página Clientes.
+- A partilha inclui nome do utilizador, mês, cliente, local e totais de 100%, 25%, 125%, 137,5%, 150%, 165%, total extra e total geral.
+- No telemóvel usa a partilha nativa quando disponível (WhatsApp, email, etc.).
+- Quando suportado, anexa também um ficheiro CSV que pode ser aberto no Excel.
+- No computador, se não existir partilha nativa, cria o CSV e copia o resumo para a área de transferência.
+- Esta atualização não apaga nem exige voltar a importar folhas, recibos, despesas ou outros dados.
