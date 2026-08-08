@@ -182,3 +182,9 @@ VERSÃO 3.9.2 — NOME VISÍVEL + POUPANÇA ANUAL
 - Assim, meses anteriores sem despesas introduzidas não entram na poupança.
 - O cartão mostra automaticamente desde que mês existem despesas registadas.
 - Não é necessário reimportar folhas, recibos ou despesas.
+
+VERSÃO 3.9.3 — LOGÓTIPO PDF PROPORCIONAL
+- Mantém integralmente todas as funcionalidades e dados da versão 3.9.2.
+- Corrigida apenas a apresentação do logótipo no PDF de Clientes.
+- O logótipo mantém a proporção original (1796 x 369), sem ficar esticado verticalmente.
+- Não altera cálculos, folhas, recibos, clientes, despesas, compensações, resumos ou backups.

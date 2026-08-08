@@ -437,7 +437,15 @@ async function buildClientsPdf(){
  doc.setFillColor(...brand);doc.rect(0,0,297,31,'F');
  const logo=await imageToDataUrl('logotipo.png');
  if(logo){
-  try{doc.addImage(logo,'PNG',12,6,48,18,undefined,'FAST')}catch{}
+  try{
+   // O logótipo original é bastante horizontal. Mantém a proporção original,
+   // em vez de o forçar para uma caixa 48 x 18 mm.
+   const logoW=48;
+   const logoRatio=1796/369;
+   const logoH=logoW/logoRatio;
+   const logoY=6+(18-logoH)/2;
+   doc.addImage(logo,'PNG',12,logoY,logoW,logoH,undefined,'FAST');
+  }catch{}
  }
  doc.setTextColor(255,255,255);
  doc.setFont('helvetica','bold');doc.setFontSize(17);
