@@ -188,3 +188,12 @@ VERSÃO 3.9.3 — LOGÓTIPO PDF PROPORCIONAL
 - Corrigida apenas a apresentação do logótipo no PDF de Clientes.
 - O logótipo mantém a proporção original (1796 x 369), sem ficar esticado verticalmente.
 - Não altera cálculos, folhas, recibos, clientes, despesas, compensações, resumos ou backups.
+
+VERSÃO 3.9.4 — HORAS EXTRA PAGAS NO MÊS SEGUINTE
+- Base integral: versão 3.9.3.
+- Alterada apenas a origem das horas extra usadas no cálculo do ordenado.
+- 25%, 125%, 137,5%, 150% e 165% trabalhadas num mês são pagas no mês seguinte.
+- Horas a 100% continuam no mês trabalhado e não entram como horas extra no ordenado.
+- Clientes, ajudas de custo, alojamento, subsídio de refeição, despesas, férias e compensações mantêm a lógica anterior.
+- As folhas existentes não são alteradas e não precisam de ser novamente importadas.
+- As horas extra de dezembro transitam para o ordenado de janeiro do ano seguinte.

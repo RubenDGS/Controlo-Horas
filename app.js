@@ -244,26 +244,22 @@ function monthGroup(m){
 
  return g;
 }
+function previousMonth(m){
+ const [y,mo]=m.split('-').map(Number);
+ const d=new Date(y,mo-2,1);
+ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+}
 function salaryMonth(m){
  const g=monthGroup(m);
- const base=num(db.settings.salarioBase);
- const grossHours=overtimeValue(g);
- const gross=base+grossHours;
- const ss=gross*num(db.settings.taxaSS)/100;
- const irsBase=irs2026(base);
- const irsHours=grossHours*(irsBase.effective/2);
- const calculatedNet=gross-ss-irsBase.value-irsHours;
-
- // Uma correção manual só é aceite dentro de limites realistas.
+ const extras=monthGroup(previousMonth(m));
+ const grossHours=overtimeValue(extras);
+ const gross=db.settings.salarioBase+grossHours,
+ ss=gross*db.settings.taxaSS/100,
+ irsBase=irs2026(db.settings.salarioBase),
+ irsHours=grossHours*(irsBase.effective/2),
+ net=gross-ss-irsBase.value-irsHours;
  const correction=db.payments.find(x=>x.month===m);
- const manualNet=num(correction?.net);
- const safeManualNet=manualNet>=300&&manualNet<=5000?manualNet:null;
-
- // Proteção final contra qualquer valor impossível.
- const net=safeManualNet??calculatedNet;
- const safeNet=net>=300&&net<=5000?net:Math.max(0,base-ss-irsBase.value);
-
- return{...g,grossHours,gross,ss,irs:irsBase.value+irsHours,net:safeNet};
+ return{...g,grossHours,gross,ss,irs:irsBase.value+irsHours,net:correction?.net??net};
 }
 function easterDate(y){const a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),month=Math.floor((h+l-7*m+114)/31),day=((h+l-7*m+114)%31)+1;return new Date(y,month-1,day)}
 function isoLocal(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
