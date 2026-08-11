@@ -712,34 +712,26 @@ $('settingsForm').onsubmit=e=>{
  save();
  message('Definições guardadas.','ok');
 };
-$('backupBtn').onclick=async()=>{
- try{
-  const now=new Date();
-  const pad=n=>String(n).padStart(2,'0');
-  const stamp=`${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}`;
-  const payload={
-   app:'Controlo Horas e Compensações',
-   backupVersion:2,
-   createdAt:now.toISOString(),
-   appVersion:'3.9.5',
-   data:db
-  };
-  if(typeof JSZip==='undefined')throw new Error('ZIP indisponível');
-  const zip=new JSZip();
-  zip.file('dados.json',JSON.stringify(payload,null,2));
-  zip.file('LEIA-ME.txt',
+async function buildBackupZip(){
+ const now=new Date();
+ const pad=n=>String(n).padStart(2,'0');
+ const stamp=`${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}`;
+ const payload={
+  app:'Controlo Horas e Compensações',
+  backupVersion:2,
+  createdAt:now.toISOString(),
+  appVersion:'3.9.6',
+  data:db
+ };
+ if(typeof JSZip==='undefined')throw new Error('ZIP indisponível');
+ const zip=new JSZip();
+ zip.file('dados.json',JSON.stringify(payload,null,2));
+ zip.file('LEIA-ME.txt',
 `BACKUP COMPLETO — CONTROLO HORAS E COMPENSAÇÕES
 Criado em: ${now.toLocaleString('pt-PT')}
-Versão da aplicação: 3.9.5
+Versão da aplicação: 3.9.6
 
-Este ficheiro contém os dados guardados pela aplicação neste dispositivo:
-- folhas e respetivos registos guardados
-- recibos e registos
-- despesas
-- pagamentos/correções
-- férias e compensações incluídas na base de dados
-- definições e nome do utilizador
-- meses fechados e restante estado da aplicação
+Este ficheiro contém os dados guardados pela aplicação neste dispositivo.
 
 PARA RESTAURAR:
 1. Abra a aplicação Controlo Horas e Compensações.
@@ -749,14 +741,48 @@ PARA RESTAURAR:
 
 Não é necessário extrair o ZIP.
 `);
-  const blob=await zip.generateAsync({type:'blob',compression:'DEFLATE',compressionOptions:{level:6}});
+ const blob=await zip.generateAsync({type:'blob',compression:'DEFLATE',compressionOptions:{level:6}});
+ return {blob,filename:`Backup_Controlo_Horas_${stamp}.zip`};
+}
+$('backupBtn').onclick=async()=>{
+ try{
+  const {blob,filename}=await buildBackupZip();
   const url=URL.createObjectURL(blob),a=document.createElement('a');
-  a.href=url;a.download=`Backup_Controlo_Horas_${stamp}.zip`;
+  a.href=url;a.download=filename;
   document.body.appendChild(a);a.click();a.remove();
   setTimeout(()=>URL.revokeObjectURL(url),1000);
-  message(`Backup completo criado: ${db.sheets.length} folhas, ${db.receipts.length} recibos, despesas, definições e restantes dados.`,'ok');
+  message(`Backup completo criado: ${db.sheets.length} folhas, ${db.receipts.length} recibos e restantes dados.`,'ok');
  }catch(err){
   message('Não foi possível criar o ZIP. Verifica a ligação à Internet e tenta novamente.','err');
+ }
+};
+$('shareBackupBtn').onclick=async()=>{
+ try{
+  const {blob,filename}=await buildBackupZip();
+  const file=new File([blob],filename,{type:'application/zip'});
+
+  if(window.isSecureContext && typeof navigator.share==='function' &&
+     (!navigator.canShare || navigator.canShare({files:[file]}))){
+   try{
+    await navigator.share({
+     title:'Backup Controlo Horas',
+     text:'Backup completo da aplicação Controlo Horas e Compensações.',
+     files:[file]
+    });
+    message('Backup partilhado.','ok');
+    return;
+   }catch(err){
+    if(err?.name==='AbortError')return;
+   }
+  }
+
+  const url=URL.createObjectURL(blob),a=document.createElement('a');
+  a.href=url;a.download=filename;
+  document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+  message('O navegador não permite partilhar o ZIP diretamente. O backup foi guardado para poderes enviá-lo manualmente.','ok');
+ }catch(err){
+  message('Não foi possível criar o backup para partilha.','err');
  }
 };
 $('restoreBtn').onclick=()=>$('restoreInput').click();

@@ -206,3 +206,13 @@ VERSÃO 3.9.5 — BACKUP COMPLETO PORTÁTIL
 - “Restaurar backup completo” aceita o novo ZIP e continua a aceitar backups JSON antigos.
 - Pode guardar o ZIP no telemóvel, PC, Drive, OneDrive, email, etc., e restaurá-lo noutra instalação da aplicação.
 - A restauração pede confirmação antes de substituir os dados do dispositivo.
+
+VERSÃO 3.9.6 — PARTILHA DIRETA DO BACKUP
+- Base integral: v3.9.5.
+- Não foram alterados cálculos nem regras de horas.
+- Novos botões:
+  * Guardar backup completo
+  * Partilhar backup completo
+- “Partilhar backup completo” tenta enviar diretamente o ZIP pelo menu de partilha do telemóvel.
+- O nome do ficheiro inclui data e hora.
+- Restaurar backup completo mantém compatibilidade com backups anteriores.
