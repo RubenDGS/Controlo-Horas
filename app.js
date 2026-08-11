@@ -655,58 +655,132 @@ function parseReceiptText(text){
  const irs=irsParts.length?irsParts.reduce((a,b)=>a+b,0):null;
  const amounts=money(clean);let subject=null,discounts=null,net=null;
 
- // O desconto total do recibo deve corresponder, em regra, a SS + IRS.
- // Isto evita o erro anterior de usar "Hora Extra" como se fosse desconto
- // e chegar ao salário base (ex.: 1694,63 - 194,63 = 1500,00).
- const expectedDiscounts=(ss!=null?ss:0)+(irs!=null?irs:0);
+ // REGRA PRIORITÁRIA PARA RECIBOS EM QUE OS CABEÇALHOS DOS TOTAIS
+ // ESTÃO NUMA PÁGINA E OS VALORES NA PÁGINA SEGUINTE.
+ // Exemplo real validado: 1694,63 € | 364,41 € | 1330,22 €.
+ // "Total a Receber" é a coluna mais à direita, logo escolhemos o valor
+ // monetário mais à direita na página seguinte quando a página anterior
+ // contém os cabeçalhos Total Sujeito / Total de Descontos / Total a Receber.
+ const posBlocks=[...clean.matchAll(/\[\[POS:(\d+)\]\]([\s\S]*?)\[\[\/POS\]\]/g)];
+ const pagesOnly=clean.split(/\[\[PAGE:\d+\]\]/);
+ if(/Total\s+Sujeito/i.test(clean) && /Total\s+(?:de\s+)?Descontos/i.test(clean) && /Total\s+a\s+Receber/i.test(clean)){
+   for(const pb of posBlocks){
+     const pageNo=Number(pb[1]);
+     if(pageNo<2)continue;
+     const vals=pb[2].split('||').map(s=>{
+       const [x,y,...rest]=s.split('::');
+       return {x:Number(x),y:Number(y),raw:rest.join('::'),v:parsePtNumber(rest.join('::'))};
+     }).filter(o=>Number.isFinite(o.v) && o.v>=100);
 
- const candidates=[];
- for(let i=0;i<amounts.length;i++){
-  for(let j=0;j<amounts.length;j++){
-   if(i===j)continue;
-   for(let k=0;k<amounts.length;k++){
-    if(k===i||k===j)continue;
-    const a=amounts[i],b=amounts[j],c=amounts[k];
-    if(a>b && c>=100 && Math.abs((a-b)-c)<0.03){
-     const discountPenalty=expectedDiscounts>0?Math.abs(b-expectedDiscounts):0;
-     candidates.push({subject:a,discounts:b,net:c,discountPenalty});
+     // No recibo real, os três totais aparecem na mesma faixa horizontal
+     // e o Total a Receber é o mais à direita.
+     if(vals.length>=3){
+       const groups=[];
+       for(const v of vals){
+         let g=groups.find(g=>Math.abs(g.y-v.y)<18);
+         if(!g){g={y:v.y,vals:[]};groups.push(g)}
+         g.vals.push(v);
+       }
+       const totalsRow=groups.filter(g=>g.vals.length>=3).sort((a,b)=>b.y-a.y)[0];
+       if(totalsRow){
+         const rightmost=[...totalsRow.vals].sort((a,b)=>b.x-a.x)[0];
+         if(rightmost){net=rightmost.v;break}
+       }
+     }
+   }
+ }
+
+ const pageParts=clean.split(/\[\[PAGE:\d+\]\]/).map(x=>x.trim()).filter(Boolean);
+
+ const readMoneyLoose=(s)=>[...s.matchAll(/(\d{1,3}(?:[.\s]\d{3})*|\d+)[,.](\d{2})\s*€?/g)]
+   .map(m=>parsePtNumber(m[0]))
+   .filter(v=>Number.isFinite(v));
+
+ const labels=[/Total\s*a\s*Receber/i,/Total\s*L[ií]quido/i,/L[ií]quido\s*a\s*Receber/i];
+
+ // A) Procurar o rótulo em cada página, apenas se a regra posicional ainda não encontrou o líquido.
+ // Se o valor não estiver na mesma página, procurar no início da página seguinte.
+ outer:
+ if(net==null) for(let i=0;i<pageParts.length;i++){
+  const page=pageParts[i];
+  for(const rx of labels){
+   const mm=rx.exec(page);
+   if(!mm)continue;
+
+   const after=page.slice(mm.index+mm[0].length);
+   const samePage=readMoneyLoose(after).filter(v=>v>=100);
+   if(samePage.length){
+    net=samePage[0];
+    break outer;
+   }
+
+   // Caso típico dos recibos de 2 páginas:
+   // "Total a Receber" aparece no fim da página 1 e o valor só aparece na página 2.
+   if(i+1<pageParts.length){
+    const nextHead=pageParts[i+1].slice(0,700);
+    const vals=readMoneyLoose(nextHead).filter(v=>v>=100);
+
+    // Primeiro tentar reconhecer trio: total sujeito - descontos = líquido.
+    let found=null;
+    for(const a of vals)for(const b of vals)for(const c of vals){
+     if(a>b && Math.abs((a-b)-c)<0.03){
+      const expectedDiscounts=(ss!=null?ss:0)+(irs!=null?irs:0);
+      const penalty=expectedDiscounts>0?Math.abs(b-expectedDiscounts):0;
+      const cand={subject:a,discounts:b,net:c,penalty};
+      if(!found || cand.penalty<found.penalty || (cand.penalty===found.penalty && cand.net>found.net))found=cand;
+     }
+    }
+    if(found){
+     subject=found.subject;discounts=found.discounts;net=found.net;
+     break outer;
+    }
+
+    // Se não houver trio, usar o último valor monetário do topo da página seguinte,
+    // pois nos recibos reais o Total a Receber aparece à direita depois dos outros totais.
+    if(vals.length){
+     net=vals.at(-1);
+     break outer;
     }
    }
   }
  }
 
- if(candidates.length){
-  // Primeiro escolher o candidato cujo "desconto" bate com SS+IRS.
-  // Em empate, preferir o maior líquido.
-  candidates.sort((x,y)=>
-    (x.discountPenalty-y.discountPenalty) ||
-    (y.net-x.net)
-  );
-  ({subject,discounts,net}=candidates[0]);
- }
-
- // Fallback por bloco final de totais, mas nunca escolher simplesmente o maior valor.
- // Se houver 3 valores no bloco, procurar A - B = C.
+ // B) Compatibilidade com PDFs sem marcador de página ou texto linear.
  if(net==null){
-  const n=norm(clean);
-  const labels=['TOTAL A RECEBER','TOTAL LIQUIDO','LIQUIDO A RECEBER','TOTAIS'];
-  for(const label of labels){
-   const pos=n.lastIndexOf(norm(label));
-   if(pos<0)continue;
-   const chunk=clean.slice(Math.max(0,pos-500),pos+700);
-   const vals=money(chunk);
-   let found=null;
-   for(const a of vals)for(const b of vals)for(const c of vals){
-    if(a>b && c>=100 && Math.abs((a-b)-c)<0.03){
-     const penalty=expectedDiscounts>0?Math.abs(b-expectedDiscounts):0;
-     const cand={subject:a,discounts:b,net:c,penalty};
-     if(!found || cand.penalty<found.penalty || (cand.penalty===found.penalty && cand.net>found.net))found=cand;
-    }
-   }
-   if(found){
-    subject=found.subject;discounts=found.discounts;net=found.net;
+  const directPatterns=[
+   /Total\s*a\s*Receber[\s\S]{0,120}?(\d{1,3}(?:[.\s]\d{3})*|\d+)[,.](\d{2})\s*€?/i,
+   /Total\s*L[ií]quido[\s\S]{0,120}?(\d{1,3}(?:[.\s]\d{3})*|\d+)[,.](\d{2})\s*€?/i,
+   /L[ií]quido\s*a\s*Receber[\s\S]{0,120}?(\d{1,3}(?:[.\s]\d{3})*|\d+)[,.](\d{2})\s*€?/i
+  ];
+  for(const rx of directPatterns){
+   const mm=clean.match(rx);
+   if(mm){
+    net=parsePtNumber(`${mm[1]},${mm[2]}`);
     break;
    }
+  }
+ }
+
+ // C) Último fallback: relação total sujeito/remunerações - descontos = líquido.
+ if(net==null){
+  const expectedDiscounts=(ss!=null?ss:0)+(irs!=null?irs:0);
+  const candidates=[];
+  for(let i=0;i<amounts.length;i++){
+   for(let j=0;j<amounts.length;j++){
+    if(i===j)continue;
+    for(let k=0;k<amounts.length;k++){
+     if(k===i||k===j)continue;
+     const a=amounts[i],b=amounts[j],c=amounts[k];
+     if(a>b && c>=100 && Math.abs((a-b)-c)<0.03){
+      const penalty=expectedDiscounts>0?Math.abs(b-expectedDiscounts):0;
+      candidates.push({subject:a,discounts:b,net:c,penalty});
+     }
+    }
+   }
+  }
+  if(candidates.length){
+   candidates.sort((x,y)=>(x.penalty-y.penalty)||(y.net-x.net));
+   ({subject,discounts,net}=candidates[0]);
   }
  }
 
@@ -723,7 +797,18 @@ async function extractReceipt(file){
 
   for(let p=1;p<=pdf.numPages;p++){
    const page=await pdf.getPage(p),content=await page.getTextContent();
-   text+=' '+content.items.map(x=>x.str).join(' ');
+   const items=content.items.map(x=>({str:x.str,x:x.transform?.[4]??0,y:x.transform?.[5]??0}));
+   const pageText=items.map(x=>x.str).join(' ');
+   text+=`\n[[PAGE:${p}]]\n${pageText}\n`;
+
+   // Guardar também os valores monetários com posição horizontal.
+   // Isto é necessário nos recibos Ambicare: os cabeçalhos dos totais ficam na pág. 1
+   // e os três valores correspondentes aparecem isolados na pág. 2.
+   const positioned=items
+     .filter(it=>/\d[\d.\s]*[,\.]\d{2}\s*€?/.test(it.str))
+     .map(it=>`${it.x.toFixed(1)}::${it.y.toFixed(1)}::${it.str}`)
+     .join('||');
+   text+=`\n[[POS:${p}]]${positioned}[[/POS]]\n`;
   }
 
   // Alguns recibos PDF são essencialmente imagem e o PDF.js devolve pouco/nenhum texto.

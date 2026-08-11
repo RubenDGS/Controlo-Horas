@@ -338,3 +338,37 @@ VERSÃO 3.10.8 — TOTAL LÍQUIDO REAL DOS RECIBOS
   1500,00 - 333,00 = 1167,00 €
 - Reprocessa automaticamente os recibos já guardados.
 - Não altera folhas, clientes, despesas, férias/compensações, subsídios, locais, definições ou outros cálculos.
+
+VERSÃO 3.10.9 — LEITURA DIRETA DE “TOTAL A RECEBER”
+- Base integral: v3.10.8.
+- Alteração limitada à identificação do líquido final dos recibos.
+- A aplicação passa a ler diretamente o primeiro valor que aparece depois de:
+  “Total a Receber”, “Total Líquido” ou “Líquido a Receber”.
+- Deixa de escolher o maior valor do recibo.
+- Deixa de usar o ordenado base como líquido.
+- Só usa a conta remunerações - descontos como fallback se o rótulo final não existir.
+- Reprocessa automaticamente recibos já guardados.
+- Não altera folhas, clientes, despesas, férias/compensações, subsídios, locais, definições ou restantes cálculos.
+
+VERSÃO 3.11.0 — TOTAL A RECEBER MULTIPÁGINA
+- Base integral: v3.10.9.
+- Alteração limitada à leitura do líquido final dos recibos.
+- Preserva a separação das páginas do PDF.
+- Se “Total a Receber” estiver no fim da página 1 e o valor apenas na página 2,
+  a aplicação procura automaticamente no início da página seguinte.
+- Quando encontra os três totais, valida: total sujeito - descontos = total a receber.
+- Mantém fallback para PDFs de uma página e outros formatos.
+- Reprocessa automaticamente recibos já guardados.
+- Não altera folhas, clientes, despesas, férias/compensações, subsídios, locais, definições ou restantes cálculos.
+
+VERSÃO 3.11.1 — RECIBOS AMBICARE / TOTAIS ENTRE PÁGINAS
+- Base integral: v3.11.0.
+- Alteração limitada à leitura do líquido dos recibos.
+- Ajustada com base no recibo real Julho.PDF fornecido.
+- Preserva a posição horizontal dos valores monetários do PDF.
+- Quando os cabeçalhos "Total Sujeito", "Total de Descontos" e "Total a Receber"
+  estão na página 1 e os valores aparecem na página 2, associa os valores pelas colunas.
+- O valor mais à direita da linha dos totais corresponde a "Total a Receber".
+- Exemplo validado: 1694,63 € | 364,41 € | 1330,22 € -> líquido 1330,22 €.
+- Mantém as regras anteriores como fallback.
+- Não altera qualquer outra área da aplicação.
