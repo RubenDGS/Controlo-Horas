@@ -5,6 +5,33 @@ async function storeFile(key,blob){const db=await fileDb();return new Promise((r
 async function getStoredFile(key){const db=await fileDb();return new Promise((res,rej)=>{const req=db.transaction('files').objectStore('files').get(key);req.onsuccess=()=>res(req.result);req.onerror=()=>rej(req.error)})}
 async function deleteStoredFile(key){const db=await fileDb();return new Promise((res,rej)=>{const tx=db.transaction('files','readwrite');tx.objectStore('files').delete(key);tx.oncomplete=res;tx.onerror=()=>rej(tx.error)})}
 async function downloadStoredFile(key,name){const blob=await getStoredFile(key);if(!blob){alert('O ficheiro original não está disponível neste dispositivo.');return}const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000)}
+async function openStoredSheet(key,name){
+ try{
+  const blob=await getStoredFile(key);
+  if(!blob){alert('O ficheiro original não está disponível neste dispositivo.');return}
+  if(!window.XLSX){alert('O leitor de Excel ainda não está disponível.');return}
+  const wb=XLSX.read(await blob.arrayBuffer(),{type:'array',cellDates:true});
+  const ws=wb.Sheets[wb.SheetNames[0]];
+  const sheetHtml=XLSX.utils.sheet_to_html(ws,{editable:false});
+  let modal=document.getElementById('sheetViewerModal');
+  if(!modal){
+   modal=document.createElement('div');
+   modal.id='sheetViewerModal';
+   modal.style.cssText='position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.55);padding:12px;display:flex;align-items:stretch;justify-content:center';
+   modal.innerHTML='<div style="background:#fff;border-radius:12px;width:min(1200px,100%);display:flex;flex-direction:column;overflow:hidden"><div style="display:flex;gap:8px;align-items:center;padding:10px;border-bottom:1px solid #ddd"><strong id="sheetViewerTitle" style="flex:1"></strong><button id="sheetViewerDownload">Descarregar</button><button id="sheetViewerClose">Fechar</button></div><div id="sheetViewerBody" style="overflow:auto;padding:10px;flex:1"></div></div>';
+   document.body.appendChild(modal);
+   document.getElementById('sheetViewerClose').onclick=()=>modal.remove();
+  }
+  document.getElementById('sheetViewerTitle').textContent=name;
+  const body=document.getElementById('sheetViewerBody');
+  body.innerHTML=sheetHtml;
+  body.querySelectorAll('table').forEach(t=>t.style.cssText='border-collapse:collapse;min-width:900px');
+  body.querySelectorAll('td,th').forEach(c=>c.style.cssText='border:1px solid #ccc;padding:4px 6px;white-space:nowrap');
+  document.getElementById('sheetViewerDownload').onclick=()=>downloadStoredFile(key,name);
+ }catch(err){
+  alert('Não foi possível abrir esta folha dentro da aplicação.');
+ }
+}
 
 const $=id=>document.getElementById(id);
 const defaults={settings:{salarioBase:1500,taxaSS:11,valorHora:8.65,nomeUtilizador:'',estadoCivil:'solteiro',dependentes:0,ajudaDia:90,alojDia:65,refeicaoDia:10.46,inicioDespesas:'2027-01-01',saldoInicial:41,dataCorte:'2026-07-25',diasFeriasAnuais:22,primeiroAnoFerias:2027,m25:.25,m125:1.25,m1375:1.375,m150:1.5,m165:1.65},sheets:[],used:[],payments:[],expenses:[],receipts:[],closedMonths:[]};
@@ -249,6 +276,17 @@ function previousMonth(m){
  const d=new Date(y,mo-2,1);
  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
 }
+function subsidyNet(m){
+ // Subsídios pagos separadamente: férias em julho e Natal em dezembro.
+ // Para salário base de 1.500 €: 11% SS + 11,2% IRS = 1.167 € líquidos.
+ const mo=String(m||'').slice(5,7);
+ if(mo!=='07'&&mo!=='12')return 0;
+ const base=num(db.settings.salarioBase);
+ if(Math.abs(base-1500)<0.01)return 1167;
+ // Se o salário base for alterado, manter a mesma incidência percentual
+ // até existir uma tabela específica configurada para o subsídio.
+ return Math.max(0,base-(base*num(db.settings.taxaSS)/100)-(base*11.2/100));
+}
 function salaryMonth(m){
  const g=monthGroup(m);
  const extras=monthGroup(previousMonth(m));
@@ -257,9 +295,11 @@ function salaryMonth(m){
  ss=gross*db.settings.taxaSS/100,
  irsBase=irs2026(db.settings.salarioBase),
  irsHours=grossHours*(irsBase.effective/2),
- net=gross-ss-irsBase.value-irsHours;
+ regularNet=gross-ss-irsBase.value-irsHours;
  const correction=db.payments.find(x=>x.month===m);
- return{...g,grossHours,gross,ss,irs:irsBase.value+irsHours,net:correction?.net??net};
+ const baseNet=correction?.net??regularNet;
+ const subsidy=subsidyNet(m);
+ return{...g,grossHours,gross,ss,irs:irsBase.value+irsHours,regularNet:baseNet,subsidy,net:baseNet+subsidy};
 }
 function easterDate(y){const a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),month=Math.floor((h+l-7*m+114)/31),day=((h+l-7*m+114)%31)+1;return new Date(y,month-1,day)}
 function isoLocal(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
@@ -348,7 +388,7 @@ function renderAnnual(){
  }
  $('annualTable').innerHTML=h;
 }
-function renderSheets(){const q=norm($('sheetSearch').value);let h='<tr><th>Ficheiro</th><th>Período</th><th>Cliente</th><th>Local</th><th>100%</th><th>Extra</th><th>Ajudas</th><th>Aloj.</th><th></th></tr>';for(const s of [...db.sheets].sort((a,b)=>b.dataFinal.localeCompare(a.dataFinal))){if(q&&!norm(`${s.name} ${s.cliente} ${s.local} ${s.processo}`).includes(q))continue;const ex=num(s.h25)+num(s.h125)+num(s.h1375)+num(s.h150)+num(s.h165);h+=`<tr><td>${s.name}</td><td>${s.dataInicial}<br>${s.dataFinal}</td><td>${s.cliente}</td><td>${s.local}</td><td>${fmt(s.normal)} h</td><td>${fmt(ex)} h</td><td>${fmt(s.diasAjuda)} dias</td><td>${fmt(s.diasAloj)} dias</td><td>${s.originalKey?`<button onclick="downloadStoredFile('${s.originalKey}','${String(s.name).replace(/'/g,"&#39;")}')">Abrir original</button> `:''}<button onclick="removeSheet('${s.id}')">Apagar</button></td></tr>`}$('sheetsTable').innerHTML=h}
+function renderSheets(){const q=norm($('sheetSearch').value);let h='<tr><th>Ficheiro</th><th>Período</th><th>Cliente</th><th>Local</th><th>100%</th><th>Extra</th><th>Ajudas</th><th>Aloj.</th><th></th></tr>';for(const s of [...db.sheets].sort((a,b)=>b.dataFinal.localeCompare(a.dataFinal))){if(q&&!norm(`${s.name} ${s.cliente} ${s.local} ${s.processo}`).includes(q))continue;const ex=num(s.h25)+num(s.h125)+num(s.h1375)+num(s.h150)+num(s.h165);h+=`<tr><td>${s.name}</td><td>${s.dataInicial}<br>${s.dataFinal}</td><td>${s.cliente}</td><td>${s.local}</td><td>${fmt(s.normal)} h</td><td>${fmt(ex)} h</td><td>${fmt(s.diasAjuda)} dias</td><td>${fmt(s.diasAloj)} dias</td><td>${s.originalKey?`<button onclick="openStoredSheet('${s.originalKey}','${String(s.name).replace(/'/g,"&#39;")}')">Abrir</button> `:''}<button onclick="removeSheet('${s.id}')">Apagar</button></td></tr>`}$('sheetsTable').innerHTML=h}
 function renderPayments(){
  const years=[...new Set(allMonths().map(m=>m.slice(0,4)))].sort().reverse(),
  sel=$('payYear').value||years[0]||String(new Date().getFullYear());
@@ -622,15 +662,9 @@ async function extractReceipt(file){
  $('receiptProgress').textContent='';return parseReceiptText(text);
 }
 function comparisonRows(receipt){
- const p=salaryMonth(receipt.month),expectedExtra=p.h25+p.h125+p.h1375+p.h150+p.h165;
- return [
-  {label:'Horas extra',expected:expectedExtra,actual:receipt.extraHours,unit:'h'},
-  {label:'Ordenado base',expected:db.settings.salarioBase,actual:receipt.base,unit:'€'},
-  {label:'Valor horas extra',expected:p.grossHours,actual:receipt.extraValue,unit:'€'},
-  {label:'Segurança Social',expected:p.ss,actual:receipt.ss,unit:'€'},
-  {label:'IRS',expected:p.irs,actual:receipt.irs,unit:'€'},
-  {label:'Líquido do recibo',expected:p.net,actual:receipt.net,unit:'€'}
- ].map(x=>({...x,diff:x.actual==null?null:x.actual-x.expected,ok:x.actual!=null&&Math.abs(x.actual-x.expected)<(x.unit==='h'?.01:.05)}));
+ const p=salaryMonth(receipt.month);
+ const x={label:'Total horas extra',expected:p.grossHours,actual:receipt.extraValue,unit:'€'};
+ return [{...x,diff:x.actual==null?null:x.actual-x.expected,ok:x.actual!=null&&Math.abs(x.actual-x.expected)<0.05}];
 }
 
 function renderReceipts(){
@@ -644,7 +678,7 @@ function renderReceipts(){
 window.showReceiptComparison=function(id,scroll=true){
  const r=db.receipts.find(x=>x.id===id);if(!r?.parsed){$('receiptComparison').innerHTML='<p class="hint">Este recibo não foi lido automaticamente.</p>';return}
  let h='<table><tr><th>Campo</th><th>Calculado pelas folhas</th><th>Recibo</th><th>Diferença</th><th>Estado</th></tr>';
- for(const x of comparisonRows(r.parsed)){const f=v=>x.unit==='€'?euro(v):`${fmt(v)} h`;h+=`<tr><td>${x.label}</td><td>${f(x.expected)}</td><td>${x.actual==null?'Não encontrado':f(x.actual)}</td><td>${x.diff==null?'—':f(x.diff)}</td><td>${x.ok?'✅':'⚠️'}</td></tr>`}
+ for(const x of comparisonRows(r.parsed)){const f=v=>x.unit==='€'?euro(v):`${fmt(v)} h`;const d=x.diff==null?'—':(x.diff>0?`+${euro(x.diff)}`:euro(x.diff));h+=`<tr><td>${x.label}</td><td>${f(x.expected)}</td><td>${x.actual==null?'Não encontrado':f(x.actual)}</td><td><strong>${d}</strong></td><td>${x.ok?'✅':'⚠️'}</td></tr>`}
  h+='</table>';$('receiptComparison').innerHTML=h;if(scroll)$('receiptComparison').scrollIntoView({behavior:'smooth'});
 }
 function renderSettings(){

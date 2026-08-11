@@ -1,5 +1,5 @@
-const C='controlo-horas-v3-9-9-receber-backup-partilha';
-const A=['./','./index.html','./styles.css','./app.js?v=3.9.9','./manifest.webmanifest','./logotipo.png','./icon-192.png','./icon-512.png','./locations.json'];
+const C='controlo-horas-v3-10-1-melhorias-recebimentos';
+const A=['./','./index.html','./styles.css','./app.js?v=3.10.1','./manifest.webmanifest','./logotipo.png','./icon-192.png','./icon-512.png','./locations.json'];
 const SHARED_CACHE='controlo-horas-shared-backup-v1';
 const SHARED_KEY=new URL('./__shared_backup__.json',self.registration.scope).href;
 

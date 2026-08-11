@@ -247,3 +247,37 @@ VERSÃO 3.9.9 — RECEBER BACKUP PELO MENU PARTILHAR DO ANDROID
 - Nenhum dado é alterado sem confirmação.
 - IMPORTANTE: em Android, uma PWA não pode ser registada de forma fiável no menu “Abrir com” para ficheiros locais. Esta versão usa o menu PARTILHAR, que é suportado para PWAs instaladas no Chrome Android.
 - Como o manifesto mudou, pode ser necessário remover e voltar a instalar APENAS a PWA no telemóvel de teste para o Android registar o novo destino de partilha. Não fazer isso no telemóvel principal sem backup validado.
+
+VERSÃO 3.10.1 — MELHORIAS SEM ALTERAÇÃO DOS DADOS EXISTENTES
+Base: v3.9.9.
+
+ALTERAÇÕES LOCALIZADAS:
+1. Comparação de recibos:
+   - compara apenas o TOTAL EM EUROS das horas extra;
+   - usa as horas extra do mês anterior, já que são pagas no mês seguinte;
+   - compara com a rubrica global "Hora Extra" do recibo;
+   - mostra diferença positiva (+), negativa (-) ou 0,00 €.
+
+2. Folhas de horas:
+   - o botão Abrir passa a mostrar a folha Excel guardada dentro da própria aplicação;
+   - mantém opção Descarregar dentro do visualizador;
+   - não é necessário apagar nem reimportar folhas.
+
+3. Líquido recebido:
+   - julho acrescenta subsídio de férias líquido;
+   - dezembro acrescenta subsídio de Natal líquido;
+   - para salário base de 1.500 €, cada subsídio acrescenta 1.167 € líquidos,
+     conforme o recibo de subsídio de férias fornecido;
+   - os subsídios entram também automaticamente no total anual.
+
+NÃO ALTERADO:
+- estrutura/chave de armazenamento;
+- folhas já importadas;
+- recibos já importados;
+- clientes;
+- despesas;
+- férias e compensações;
+- locais;
+- definições;
+- regra das horas extra no mês seguinte;
+- restantes cálculos existentes.
