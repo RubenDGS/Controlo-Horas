@@ -654,7 +654,39 @@ function parseReceiptText(text){
  const irsParts=[...clean.matchAll(/Imposto\s*S\/Rendimento[\s\S]{0,120}?(\d+(?:[,.]\d{2}))\s*€/gi)].map(m=>parsePtNumber(m[1]));
  const irs=irsParts.length?irsParts.reduce((a,b)=>a+b,0):null;
  const amounts=money(clean);let subject=null,discounts=null,net=null;
- for(const a of amounts)for(const b of amounts)for(const c of amounts)if(a>b&&Math.abs(a-b-c)<.02){subject=a;discounts=b;net=c}
+
+ const allNums=(s)=>[...s.matchAll(/(\d{1,3}(?:[.\s]\d{3})*|\d+)[,.](\d{2})/g)]
+   .map(m=>parsePtNumber(m[0]))
+   .filter(v=>Number.isFinite(v));
+
+ const around=(label)=>{
+  const n=norm(clean),k=n.indexOf(norm(label));
+  if(k<0)return [];
+  return allNums(clean.slice(Math.max(0,k-120),k+260));
+ };
+
+ const recVals=around('TOTAL A RECEBER');
+ const liqVals=around('TOTAL LIQUIDO');
+ const descVals=around('TOTAL DE DESCONTOS');
+ const remVals=around('TOTAL DE REMUNERACOES');
+
+ if(recVals.length) net=Math.max(...recVals);
+ else if(liqVals.length) net=Math.max(...liqVals);
+
+ if(descVals.length) discounts=Math.max(...descVals);
+ if(remVals.length) subject=Math.max(...remVals);
+
+ if(subject!=null && discounts!=null){
+  const calc=subject-discounts;
+  if(calc>=0 && (net==null || Math.abs(net-calc)>0.05)) net=calc;
+ }
+
+ if(net==null){
+  for(const a of amounts)for(const b of amounts)for(const c of amounts){
+   if(a>b&&Math.abs(a-b-c)<.02){subject=a;discounts=b;net=c}
+  }
+ }
+
  return {month,base,extraHours,extraValue,ss,irs,subject,discounts,net,text:clean};
 }
 async function extractReceipt(file){
@@ -751,6 +783,19 @@ function comparisonRows(receipt){
  return [{...x,diff:x.actual==null?null:x.actual-x.expected,ok:x.actual!=null&&Math.abs(x.actual-x.expected)<0.05}];
 }
 
+function repairStoredReceiptNet(r){
+ if(!r?.parsed?.text)return false;
+ const oldNet=r.parsed.net==null?null:num(r.parsed.net);
+ if(oldNet==null || oldNet<300){
+  const fresh=parseReceiptText(r.parsed.text);
+  if(fresh.net!=null && fresh.net!==r.parsed.net){
+   r.parsed={...r.parsed,...fresh,month:fresh.month||r.parsed.month||r.month};
+   return true;
+  }
+ }
+ return false;
+}
+
 function receiptMonthSummary(month){
  const items=db.receipts.filter(r=>r.month===month&&r.parsed);
  const values=items.map(r=>r.parsed?.net).filter(v=>v!=null&&isFinite(Number(v))).map(Number);
@@ -762,6 +807,9 @@ function receiptMonthSummary(month){
  return{items,actual,expected,diff,special,complete};
 }
 function renderReceipts(){
+ let repaired=false;
+ for(const r of db.receipts)if(repairStoredReceiptNet(r))repaired=true;
+ if(repaired)localStorage.setItem(KEY,JSON.stringify(db));
  let h='<tr><th>Mês</th><th>Ficheiro</th><th>Líquido lido</th><th></th></tr>';
  for(const r of [...db.receipts].sort((a,b)=>(b.month||'').localeCompare(a.month||''))){
   h+=`<tr><td>${r.month||'—'}</td><td>${r.name}</td><td>${r.parsed?.net!=null?euro(r.parsed.net):'Não encontrado'}</td><td><button onclick="openReceipt('${r.id}')">Abrir</button> <button onclick="removeReceipt('${r.id}')">Apagar</button></td></tr>`;

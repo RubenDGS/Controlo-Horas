@@ -298,3 +298,13 @@ VERSÃO 3.10.4 — RECIBOS AUTOMÁTICOS
 - Julho e dezembro esperam dois recibos e somam automaticamente os líquidos.
 - Compara automaticamente o total dos recibos com o líquido calculado pela aplicação.
 - Mantém os dados existentes e as restantes áreas sem alteração.
+
+VERSÃO 3.10.5 — LÍQUIDO DOS RECIBOS CORRIGIDO
+- Base integral: v3.10.4.
+- Alteração limitada à leitura do total líquido dos recibos.
+- Passa a procurar explicitamente “TOTAL A RECEBER” e “TOTAL LÍQUIDO”.
+- Evita confundir IRS/SS (ex.: 168,00 €) com o líquido do recibo.
+- Quando existem “TOTAL DE REMUNERAÇÕES” e “TOTAL DE DESCONTOS”, valida também líquido = remunerações - descontos.
+- Recibos já guardados com líquido ausente ou inferior a 300 € são reprocessados automaticamente.
+- Não é necessário apagar nem voltar a importar recibos.
+- Não altera folhas, clientes, despesas, férias/compensações, subsídios ou outros cálculos.
