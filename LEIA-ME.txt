@@ -281,3 +281,20 @@ NÃO ALTERADO:
 - definições;
 - regra das horas extra no mês seguinte;
 - restantes cálculos existentes.
+
+VERSÃO 3.10.3 — COMPARADOR DE RECIBOS COM OCR
+- Base integral: v3.10.2.
+- Alteração limitada ao leitor/comparador de recibos.
+- Se o PDF não tiver camada de texto suficiente, a aplicação renderiza a primeira página e faz OCR.
+- Ao carregar em Comparar num recibo já existente sem valor "Hora Extra", a aplicação relê automaticamente o ficheiro original já guardado.
+- Não é necessário apagar nem voltar a importar recibos.
+- Não altera cálculos, folhas, clientes, despesas, férias/compensações, subsídios, locais, definições ou dados existentes.
+
+VERSÃO 3.10.4 — RECIBOS AUTOMÁTICOS
+- Remove campos manuais de líquido e horas extra.
+- Remove a necessidade do botão Comparar.
+- Mantém Abrir e Apagar.
+- Permite vários recibos no mesmo mês.
+- Julho e dezembro esperam dois recibos e somam automaticamente os líquidos.
+- Compara automaticamente o total dos recibos com o líquido calculado pela aplicação.
+- Mantém os dados existentes e as restantes áreas sem alteração.

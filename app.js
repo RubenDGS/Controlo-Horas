@@ -658,17 +658,52 @@ function parseReceiptText(text){
  return {month,base,extraHours,extraValue,ss,irs,subject,discounts,net,text:clean};
 }
 async function extractReceipt(file){
- $('receiptProgress').textContent='A ler o recibo automaticamente…';let text='';
- if(file.type==='application/pdf'||file.name.toLowerCase().endsWith('.pdf')){
+ $('receiptProgress').textContent='A ler o recibo automaticamente…';
+ let text='';
+
+ if(file.type==='application/pdf'||file.name?.toLowerCase().endsWith('.pdf')){
   const pdfjs=await import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs');
   pdfjs.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs';
   const pdf=await pdfjs.getDocument({data:await file.arrayBuffer()}).promise;
-  for(let p=1;p<=pdf.numPages;p++){const page=await pdf.getPage(p),content=await page.getTextContent();text+=' '+content.items.map(x=>x.str).join(' ')}
+
+  for(let p=1;p<=pdf.numPages;p++){
+   const page=await pdf.getPage(p),content=await page.getTextContent();
+   text+=' '+content.items.map(x=>x.str).join(' ');
+  }
+
+  // Alguns recibos PDF são essencialmente imagem e o PDF.js devolve pouco/nenhum texto.
+  // Nesses casos fazemos OCR da primeira página, onde está a rubrica "Hora Extra".
+  if(!/Hora\s*Extra/i.test(text) || text.replace(/\s+/g,'').length<80){
+   $('receiptProgress').textContent='A ler o recibo por imagem…';
+   const page=await pdf.getPage(1);
+   const viewport=page.getViewport({scale:2});
+   const canvas=document.createElement('canvas');
+   const ctx=canvas.getContext('2d');
+   canvas.width=Math.ceil(viewport.width);
+   canvas.height=Math.ceil(viewport.height);
+   await page.render({canvasContext:ctx,viewport}).promise;
+
+   const result=await Tesseract.recognize(canvas,'por',{
+    logger:m=>{
+     if(m.status==='recognizing text')
+      $('receiptProgress').textContent=`A ler recibo: ${Math.round((m.progress||0)*100)}%`;
+    }
+   });
+   text+=' '+result.data.text;
+  }
  }else{
-  const result=await Tesseract.recognize(file,'por',{logger:m=>{$('receiptProgress').textContent=m.status==='recognizing text'?`A ler fotografia: ${Math.round((m.progress||0)*100)}%`:'A preparar leitura…'}});
+  const result=await Tesseract.recognize(file,'por',{
+   logger:m=>{
+    $('receiptProgress').textContent=m.status==='recognizing text'
+     ?`A ler fotografia: ${Math.round((m.progress||0)*100)}%`
+     :'A preparar leitura…';
+   }
+  });
   text=result.data.text;
  }
- $('receiptProgress').textContent='';return parseReceiptText(text);
+
+ $('receiptProgress').textContent='';
+ return parseReceiptText(text);
 }
 function refreshReceiptParsed(receipt){
  if(!receipt?.parsed)return receipt?.parsed;
@@ -680,26 +715,73 @@ function refreshReceiptParsed(receipt){
  }
  return receipt.parsed;
 }
+async function ensureReceiptExtraValue(r){
+ if(!r?.parsed)return false;
+ if(r.parsed.extraValue!=null)return true;
+
+ // Primeiro tenta novamente o texto já guardado.
+ if(r.parsed.text){
+  const fresh=parseReceiptText(r.parsed.text);
+  r.parsed={...r.parsed,...fresh,month:fresh.month||r.parsed.month||r.month};
+  if(r.parsed.extraValue!=null){
+   save();
+   return true;
+  }
+ }
+
+ // Se o PDF antigo não tinha camada de texto, relê o ficheiro original por OCR.
+ if(r.fileKey){
+  const blob=await getStoredFile(r.fileKey);
+  if(blob){
+   $('receiptProgress').textContent='A reler o recibo para encontrar Hora Extra…';
+   const file=new File([blob],r.name||'recibo.pdf',{type:blob.type||r.type||'application/pdf'});
+   const fresh=await extractReceipt(file);
+   r.parsed={...r.parsed,...fresh,month:fresh.month||r.parsed.month||r.month};
+   if(r.parsed.month)r.month=r.parsed.month;
+   save();
+   return r.parsed.extraValue!=null;
+  }
+ }
+ return false;
+}
+
 function comparisonRows(receipt){
  const p=salaryMonth(receipt.month);
  const x={label:'Total horas extra',expected:p.grossHours,actual:receipt.extraValue,unit:'€'};
  return [{...x,diff:x.actual==null?null:x.actual-x.expected,ok:x.actual!=null&&Math.abs(x.actual-x.expected)<0.05}];
 }
 
-function renderReceipts(){
- let h='<tr><th>Mês</th><th>Ficheiro</th><th>Horas extra</th><th>Líquido</th><th>Resultado</th><th></th></tr>';
- for(const r of [...db.receipts].sort((a,b)=>b.month.localeCompare(a.month))){
-  if(r.parsed)refreshReceiptParsed(r);
-  const comp=r.parsed?comparisonRows(r.parsed):[],issues=comp.filter(x=>!x.ok).length;
-  h+=`<tr><td>${r.month||'—'}</td><td>${r.name}</td><td>${r.parsed?.extraHours??'—'}</td><td>${r.parsed?.net!=null?euro(r.parsed.net):'—'}</td><td>${r.parsed?(issues?`⚠️ ${issues} ${issues===1?'diferença':'diferenças'}`:'✅ OK'):'Manual'}</td><td><button onclick="openReceipt('${r.id}')">Abrir</button> <button onclick="showReceiptComparison('${r.id}')">Comparar</button> <button onclick="removeReceipt('${r.id}')">Apagar</button></td></tr>`;
- }
- $('receiptsTable').innerHTML=h;const latest=[...db.receipts].sort((a,b)=>b.month.localeCompare(a.month))[0];if(latest)showReceiptComparison(latest.id,false);else $('receiptComparison').innerHTML='<p class="hint">Importa um recibo para comparar.</p>';
+function receiptMonthSummary(month){
+ const items=db.receipts.filter(r=>r.month===month&&r.parsed);
+ const values=items.map(r=>r.parsed?.net).filter(v=>v!=null&&isFinite(Number(v))).map(Number);
+ const actual=values.length?values.reduce((a,b)=>a+b,0):null;
+ const expected=salaryMonth(month).net;
+ const special=['07','12'].includes(String(month||'').slice(5,7));
+ const complete=!special||items.length>=2;
+ const diff=actual==null?null:actual-expected;
+ return{items,actual,expected,diff,special,complete};
 }
-window.showReceiptComparison=function(id,scroll=true){
- const r=db.receipts.find(x=>x.id===id);if(r?.parsed)refreshReceiptParsed(r);if(!r?.parsed){$('receiptComparison').innerHTML='<p class="hint">Este recibo não foi lido automaticamente.</p>';return}
- let h='<table><tr><th>Campo</th><th>Calculado pelas folhas</th><th>Recibo</th><th>Diferença</th><th>Estado</th></tr>';
- for(const x of comparisonRows(r.parsed)){const f=v=>x.unit==='€'?euro(v):`${fmt(v)} h`;const d=x.diff==null?'—':(x.diff>0?`+${euro(x.diff)}`:euro(x.diff));h+=`<tr><td>${x.label}</td><td>${f(x.expected)}</td><td>${x.actual==null?'Não encontrado':f(x.actual)}</td><td><strong>${d}</strong></td><td>${x.ok?'✅':'⚠️'}</td></tr>`}
- h+='</table>';$('receiptComparison').innerHTML=h;if(scroll)$('receiptComparison').scrollIntoView({behavior:'smooth'});
+function renderReceipts(){
+ let h='<tr><th>Mês</th><th>Ficheiro</th><th>Líquido lido</th><th></th></tr>';
+ for(const r of [...db.receipts].sort((a,b)=>(b.month||'').localeCompare(a.month||''))){
+  h+=`<tr><td>${r.month||'—'}</td><td>${r.name}</td><td>${r.parsed?.net!=null?euro(r.parsed.net):'Não encontrado'}</td><td><button onclick="openReceipt('${r.id}')">Abrir</button> <button onclick="removeReceipt('${r.id}')">Apagar</button></td></tr>`;
+ }
+ $('receiptsTable').innerHTML=h;
+
+ const months=[...new Set(db.receipts.map(r=>r.month).filter(Boolean))].sort().reverse();
+ if(!months.length){$('receiptComparison').innerHTML='<p class="hint">Importa um recibo. A comparação será feita automaticamente.</p>';return}
+ let c='<table><tr><th>Mês</th><th>Calculado pela aplicação</th><th>Total dos recibos</th><th>Diferença</th><th>Estado</th></tr>';
+ for(const month of months){
+  const s=receiptMonthSummary(month);
+  const d=s.diff==null?'—':`${s.diff>0?'+':''}${euro(s.diff)}`;
+  let state='⚠️ Total não encontrado';
+  if(s.actual!=null&&!s.complete)state='⚠️ Falta 1 recibo do mês';
+  else if(s.actual!=null&&Math.abs(s.diff)<0.05)state='✅ OK';
+  else if(s.actual!=null)state='⚠️ Verificar';
+  c+=`<tr><td>${month}</td><td>${euro(s.expected)}</td><td>${s.actual==null?'Não encontrado':euro(s.actual)}</td><td><strong>${d}</strong></td><td>${state}</td></tr>`;
+ }
+ c+='</table>';
+ $('receiptComparison').innerHTML=c;
 }
 function renderSettings(){
  for(const el of $('settingsForm').elements)if(el.name)el.value=db.settings[el.name]??'';
@@ -800,10 +882,9 @@ $('receiptForm').onsubmit=async e=>{
  e.preventDefault();const f=$('receiptFile').files[0];if(!f)return;
  try{
   const parsed=await extractReceipt(f),month=parsed.month||$('receiptMonth').value;if(!month)throw new Error('Não foi possível identificar o mês.');parsed.month=month;
-  if($('receiptNet').value)parsed.net=num($('receiptNet').value);if($('receiptExtra').value)parsed.extraValue=num($('receiptExtra').value);
   const key='receipt-'+uid();await storeFile(key,f);
   const obj={id:uid(),month,name:f.name,type:f.type||f.name.split('.').pop(),fileKey:key,parsed};
-  const old=db.receipts.find(x=>x.month===month);if(old?.fileKey)await deleteStoredFile(old.fileKey);db.receipts=db.receipts.filter(x=>x.month!==month);db.receipts.push(obj);save();$('receiptForm').reset();$('receiptProgress').textContent='Recibo lido e comparado automaticamente.';
+  db.receipts.push(obj);save();$('receiptForm').reset();$('receiptProgress').textContent='Recibo lido e comparação atualizada automaticamente.';
  }catch(err){$('receiptProgress').textContent='Erro: '+err.message}
 }
 function fileToDataURL(f){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(f)})}
