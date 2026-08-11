@@ -216,3 +216,9 @@ VERSÃO 3.9.6 — PARTILHA DIRETA DO BACKUP
 - “Partilhar backup completo” tenta enviar diretamente o ZIP pelo menu de partilha do telemóvel.
 - O nome do ficheiro inclui data e hora.
 - Restaurar backup completo mantém compatibilidade com backups anteriores.
+
+VERSÃO 3.9.7 — CORREÇÃO EXCLUSIVA DA PARTILHA DO BACKUP
+- Base integral: v3.9.6.
+- Nenhuma alteração a cálculos, horas, recibos, clientes, despesas, férias, compensações, PDFs ou dados.
+- Alterada apenas a entrega do ZIP ao sistema de partilha Android.
+- O ficheiro continua a ser um ZIP normal e restaurável.

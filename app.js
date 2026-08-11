@@ -759,10 +759,9 @@ $('backupBtn').onclick=async()=>{
 $('shareBackupBtn').onclick=async()=>{
  try{
   const {blob,filename}=await buildBackupZip();
-  const file=new File([blob],filename,{type:'application/zip'});
+  const file=new File([blob],filename,{type:'application/octet-stream'});
 
-  if(window.isSecureContext && typeof navigator.share==='function' &&
-     (!navigator.canShare || navigator.canShare({files:[file]}))){
+  if(window.isSecureContext && typeof navigator.share==='function'){
    try{
     await navigator.share({
      title:'Backup Controlo Horas',
