@@ -1,5 +1,5 @@
-const C='controlo-horas-v3-10-7-liquido-recibos-com-horas';
-const A=['./','./index.html','./styles.css','./app.js?v=3.10.7','./manifest.webmanifest','./logotipo.png','./icon-192.png','./icon-512.png','./locations.json'];
+const C='controlo-horas-v3-10-8-total-liquido-real';
+const A=['./','./index.html','./styles.css','./app.js?v=3.10.8','./manifest.webmanifest','./logotipo.png','./icon-192.png','./icon-512.png','./locations.json'];
 const SHARED_CACHE='controlo-horas-shared-backup-v1';
 const SHARED_KEY=new URL('./__shared_backup__.json',self.registration.scope).href;
 

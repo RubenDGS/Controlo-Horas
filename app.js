@@ -655,30 +655,11 @@ function parseReceiptText(text){
  const irs=irsParts.length?irsParts.reduce((a,b)=>a+b,0):null;
  const amounts=money(clean);let subject=null,discounts=null,net=null;
 
- const allMoney=(s)=>[...s.matchAll(/(\d{1,3}(?:[.\s]\d{3})*|\d+)[,.](\d{2})\s*€?/g)]
-   .map(m=>parsePtNumber(m[0]))
-   .filter(v=>Number.isFinite(v));
+ // O desconto total do recibo deve corresponder, em regra, a SS + IRS.
+ // Isto evita o erro anterior de usar "Hora Extra" como se fosse desconto
+ // e chegar ao salário base (ex.: 1694,63 - 194,63 = 1500,00).
+ const expectedDiscounts=(ss!=null?ss:0)+(irs!=null?irs:0);
 
- // 1) Tentar encontrar explicitamente o bloco final de totais.
- // Em muitos recibos o "Total a Receber" aparece na 2.ª página, longe das horas extra.
- const nclean=norm(clean);
- const totalLabels=['TOTAL A RECEBER','TOTAL LIQUIDO','LIQUIDO A RECEBER'];
- for(const label of totalLabels){
-  const pos=nclean.lastIndexOf(norm(label));
-  if(pos>=0){
-   const chunk=clean.slice(Math.max(0,pos-500),pos+500);
-   const vals=allMoney(chunk).filter(v=>v>=100);
-   if(vals.length){
-    // Preferir o maior valor do bloco de totais. Nos recibos reais isto corresponde
-    // ao líquido final ou ao total sujeito; validamos em seguida com os descontos.
-    net=Math.max(...vals);
-   }
-   break;
-  }
- }
-
- // 2) Procurar relações aritméticas plausíveis no documento inteiro:
- // total sujeito/remunerações - descontos = líquido.
  const candidates=[];
  for(let i=0;i<amounts.length;i++){
   for(let j=0;j<amounts.length;j++){
@@ -687,23 +668,46 @@ function parseReceiptText(text){
     if(k===i||k===j)continue;
     const a=amounts[i],b=amounts[j],c=amounts[k];
     if(a>b && c>=100 && Math.abs((a-b)-c)<0.03){
-     candidates.push({subject:a,discounts:b,net:c});
+     const discountPenalty=expectedDiscounts>0?Math.abs(b-expectedDiscounts):0;
+     candidates.push({subject:a,discounts:b,net:c,discountPenalty});
     }
    }
   }
  }
+
  if(candidates.length){
-  candidates.sort((x,y)=>y.net-x.net);
-  const best=candidates[0];
-  subject=best.subject;discounts=best.discounts;
-  // Se o valor por rótulo não existir, usar a conta. Se existir mas não bate, preferir a conta.
-  if(net==null || Math.abs((subject-discounts)-net)>0.05) net=best.net;
+  // Primeiro escolher o candidato cujo "desconto" bate com SS+IRS.
+  // Em empate, preferir o maior líquido.
+  candidates.sort((x,y)=>
+    (x.discountPenalty-y.discountPenalty) ||
+    (y.net-x.net)
+  );
+  ({subject,discounts,net}=candidates[0]);
  }
 
- // 3) Fallback para recibos simples sem horas extra.
+ // Fallback por bloco final de totais, mas nunca escolher simplesmente o maior valor.
+ // Se houver 3 valores no bloco, procurar A - B = C.
  if(net==null){
-  const vals=amounts.filter(v=>v>=100);
-  if(vals.length) net=Math.max(...vals);
+  const n=norm(clean);
+  const labels=['TOTAL A RECEBER','TOTAL LIQUIDO','LIQUIDO A RECEBER','TOTAIS'];
+  for(const label of labels){
+   const pos=n.lastIndexOf(norm(label));
+   if(pos<0)continue;
+   const chunk=clean.slice(Math.max(0,pos-500),pos+700);
+   const vals=money(chunk);
+   let found=null;
+   for(const a of vals)for(const b of vals)for(const c of vals){
+    if(a>b && c>=100 && Math.abs((a-b)-c)<0.03){
+     const penalty=expectedDiscounts>0?Math.abs(b-expectedDiscounts):0;
+     const cand={subject:a,discounts:b,net:c,penalty};
+     if(!found || cand.penalty<found.penalty || (cand.penalty===found.penalty && cand.net>found.net))found=cand;
+    }
+   }
+   if(found){
+    subject=found.subject;discounts=found.discounts;net=found.net;
+    break;
+   }
+  }
  }
 
  return {month,base,extraHours,extraValue,ss,irs,subject,discounts,net,text:clean};

@@ -327,3 +327,14 @@ VERSÃO 3.10.7 — LÍQUIDO EM RECIBOS COM HORAS EXTRA
 - Mantém compatibilidade com recibos simples como janeiro e subsídios.
 - Reprocessa automaticamente recibos já guardados.
 - Não altera folhas, clientes, despesas, férias/compensações, subsídios, locais, definições ou outros cálculos.
+
+VERSÃO 3.10.8 — TOTAL LÍQUIDO REAL DOS RECIBOS
+- Base integral: v3.10.7.
+- Corrige apenas a identificação do líquido final.
+- O desconto total passa a ser validado contra Segurança Social + IRS.
+- Evita confundir o valor de Hora Extra com descontos e devolver o salário base.
+- Exemplos suportados:
+  1694,63 - 364,41 = 1330,22 €
+  1500,00 - 333,00 = 1167,00 €
+- Reprocessa automaticamente os recibos já guardados.
+- Não altera folhas, clientes, despesas, férias/compensações, subsídios, locais, definições ou outros cálculos.
