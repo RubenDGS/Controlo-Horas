@@ -653,6 +653,60 @@ function renderSettings(){
  const h=$('headerUserName');
  if(h)h.textContent=nome?`👤 ${nome}`:'';
 }
+
+async function processSharedBackupOnLaunch(){
+ const qs=new URLSearchParams(location.search);
+ if(qs.get('sharedBackupError')==='1'){
+  message('O ficheiro partilhado não é um backup JSON válido. Nenhum dado foi alterado.','err');
+  history.replaceState({},'',location.pathname);
+  return;
+ }
+ if(qs.get('sharedBackup')!=='1')return;
+
+ try{
+  const sharedKey=new URL('./__shared_backup__.json',location.href).href;
+  const c=await caches.open('controlo-horas-shared-backup-v1');
+  const response=await c.match(sharedKey);
+  if(!response)throw new Error('backup partilhado não encontrado');
+
+  const raw=JSON.parse(await response.text());
+  await c.delete(sharedKey);
+
+  const incoming=raw?.data&&raw?.backupVersion?raw.data:raw;
+  if(!incoming||typeof incoming!=='object'||!Array.isArray(incoming.sheets))throw new Error('formato inválido');
+
+  const ok=confirm(
+   `Backup recebido pela partilha.\n\n`+
+   `Folhas: ${incoming.sheets.length}\n`+
+   `Recibos: ${Array.isArray(incoming.receipts)?incoming.receipts.length:0}\n`+
+   `Despesas: ${Array.isArray(incoming.expenses)?incoming.expenses.length:0}\n\n`+
+   `Restaurar agora nesta aplicação?`
+  );
+
+  if(ok){
+   db={
+    ...clone(defaults),
+    ...incoming,
+    settings:{...defaults.settings,...(incoming.settings||{})},
+    sheets:Array.isArray(incoming.sheets)?incoming.sheets:[],
+    used:Array.isArray(incoming.used)?incoming.used:[],
+    payments:Array.isArray(incoming.payments)?incoming.payments:[],
+    expenses:Array.isArray(incoming.expenses)?incoming.expenses:[],
+    receipts:Array.isArray(incoming.receipts)?incoming.receipts:[],
+    closedMonths:Array.isArray(incoming.closedMonths)?incoming.closedMonths:[]
+   };
+   save();
+   message(`Backup restaurado: ${db.sheets.length} folhas, ${db.receipts.length} recibos e restantes dados.`,'ok');
+  }else{
+   message('Restauro cancelado. Nenhum dado foi alterado.','ok');
+  }
+ }catch(err){
+  message('Não foi possível ler o backup recebido. Nenhum dado foi alterado.','err');
+ }finally{
+  history.replaceState({},'',location.pathname);
+ }
+}
+
 function render(){renderDashboard();renderSheets();renderPayments();renderClients();renderExpenses();renderLeave();renderLocations();renderReceipts();renderSettings()}
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab,.panel').forEach(x=>x.classList.remove('active'));b.classList.add('active');$(b.dataset.tab).classList.add('active')});
 $('fileInput').onchange=async e=>{
@@ -846,4 +900,4 @@ $('globalSearch').oninput=()=>{const q=$('globalSearch').value;if(q.length<2)ret
 let installPrompt=null;window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installPrompt=e;$('installBtn').hidden=false});$('installBtn').onclick=async()=>{if(installPrompt){installPrompt.prompt();await installPrompt.userChoice;installPrompt=null;$('installBtn').hidden=true}else alert('No iPhone: Partilhar → Adicionar ao ecrã principal.')};
 function connection(){if(navigator.onLine){$('connectionStatus').textContent='';$('connectionStatus').className=''}else{$('connectionStatus').textContent='📴 Sem internet: os dados continuam guardados neste dispositivo.';$('connectionStatus').className='offline'}}window.addEventListener('online',connection);window.addEventListener('offline',connection);
 fetch('locations.json').then(r=>r.json()).then(x=>{locations=x;const src=[...new Set(x.map(v=>v.source))].sort();$('locationSource').innerHTML='<option value="">Todas as entidades</option>'+src.map(s=>`<option>${s}</option>`).join('');renderLocations()}).catch(()=>{});
-for(const id of ['dashMonth','expenseMonth','receiptMonth'])$(id).value=currentMonth();$('clientMonth').value=latestSheetMonth();$('expenseDate').value=today();$('leaveStart').value=today();$('leaveEnd').value=today();connection();render();
+for(const id of ['dashMonth','expenseMonth','receiptMonth'])$(id).value=currentMonth();$('clientMonth').value=latestSheetMonth();$('expenseDate').value=today();$('leaveStart').value=today();$('leaveEnd').value=today();connection();render();processSharedBackupOnLaunch();
