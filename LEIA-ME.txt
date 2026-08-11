@@ -222,3 +222,13 @@ VERSÃO 3.9.7 — CORREÇÃO EXCLUSIVA DA PARTILHA DO BACKUP
 - Nenhuma alteração a cálculos, horas, recibos, clientes, despesas, férias, compensações, PDFs ou dados.
 - Alterada apenas a entrega do ZIP ao sistema de partilha Android.
 - O ficheiro continua a ser um ZIP normal e restaurável.
+
+VERSÃO 3.9.8 — BACKUP DIRETO DOS DADOS DA APLICAÇÃO INSTALADA
+- Base integral: v3.9.7.
+- Nenhum cálculo, folha, recibo, cliente, despesa, férias, compensações, PDF ou regra de pagamento foi alterado.
+- Alterado exclusivamente o botão “Partilhar backup completo”.
+- O botão cria e partilha diretamente um único ficheiro JSON com a base de dados da própria instalação onde foi premido.
+- Antes de partilhar, mostra quantas folhas, recibos e despesas vão efetivamente no backup.
+- Isto permite confirmar imediatamente se o backup contém os dados antes de o enviar.
+- “Restaurar backup completo” já aceita este JSON, bem como os backups ZIP/JSON anteriores.
+- “Guardar backup completo” mantém o comportamento anterior.

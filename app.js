@@ -758,30 +758,48 @@ $('backupBtn').onclick=async()=>{
 };
 $('shareBackupBtn').onclick=async()=>{
  try{
-  const {blob,filename}=await buildBackupZip();
-  const file=new File([blob],filename,{type:'application/octet-stream'});
+  const now=new Date();
+  const pad=n=>String(n).padStart(2,'0');
+  const stamp=`${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}`;
+  const payload={
+   app:'Controlo Horas e Compensações',
+   backupVersion:3,
+   createdAt:now.toISOString(),
+   appVersion:'3.9.8',
+   data:db
+  };
+  const text=JSON.stringify(payload,null,2);
+  const filename=`Backup_Controlo_Horas_${stamp}.json`;
+  const blob=new Blob([text],{type:'application/json;charset=utf-8'});
+  const file=new File([blob],filename,{type:'application/json'});
+
+  // Mostra ao utilizador o que está efetivamente a sair desta instalação.
+  const resumo=`${db.sheets.length} folhas · ${db.receipts.length} recibos · ${db.expenses.length} despesas`;
+  const ok=confirm(`Backup preparado nesta aplicação:\n\n${resumo}\n\nContinuar para partilhar?`);
+  if(!ok)return;
 
   if(window.isSecureContext && typeof navigator.share==='function'){
    try{
     await navigator.share({
      title:'Backup Controlo Horas',
-     text:'Backup completo da aplicação Controlo Horas e Compensações.',
+     text:`Backup completo — ${resumo}`,
      files:[file]
     });
-    message('Backup partilhado.','ok');
+    message(`Backup partilhado: ${resumo}.`,'ok');
     return;
    }catch(err){
     if(err?.name==='AbortError')return;
    }
   }
 
+  // Fallback para browsers que não partilham ficheiros.
   const url=URL.createObjectURL(blob),a=document.createElement('a');
   a.href=url;a.download=filename;
   document.body.appendChild(a);a.click();a.remove();
   setTimeout(()=>URL.revokeObjectURL(url),1000);
-  message('O navegador não permite partilhar o ZIP diretamente. O backup foi guardado para poderes enviá-lo manualmente.','ok');
+  message(`Backup guardado: ${resumo}.`,'ok');
  }catch(err){
-  message('Não foi possível criar o backup para partilha.','err');
+  message('Não foi possível criar/partilhar o backup. Nenhum dado foi alterado.','err');
  }
 };
 $('restoreBtn').onclick=()=>$('restoreInput').click();
