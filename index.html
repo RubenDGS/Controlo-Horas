@@ -10,7 +10,7 @@
   <link rel="apple-touch-icon" href="icon-192.png">
   <link rel="stylesheet" href="styles.css">
 </head>
-<body><div id="appVersion" style="position:fixed;right:6px;bottom:6px;z-index:9999;font-size:11px;background:#fff;border:1px solid #ccc;border-radius:6px;padding:3px 6px;opacity:.85">v3.10.5</div>
+<body><div id="appVersion" style="position:fixed;right:6px;bottom:6px;z-index:9999;font-size:11px;background:#fff;border:1px solid #ccc;border-radius:6px;padding:3px 6px;opacity:.85">v3.10.6</div>
 <header class="appHeader">
   <div class="brand">
     <img class="brandLogo" src="logotipo.png" alt="Logótipo">
@@ -202,17 +202,17 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
-<script src="app.js?v=3.10.5"></script>
+<script src="app.js?v=3.10.6"></script>
 <script>
 (async()=>{
  if(!('serviceWorker' in navigator) || !location.protocol.startsWith('http')) return;
  try{
-  const reg=await navigator.serviceWorker.register('sw.js?v=3.10.5',{updateViaCache:'none'});
+  const reg=await navigator.serviceWorker.register('sw.js?v=3.10.6',{updateViaCache:'none'});
   await reg.update();
   if(reg.waiting) reg.waiting.postMessage({type:'SKIP_WAITING'});
   navigator.serviceWorker.addEventListener('controllerchange',()=>{
-   if(!sessionStorage.getItem('reloaded-v3105')){
-    sessionStorage.setItem('reloaded-v3105','1');
+   if(!sessionStorage.getItem('reloaded-v3106')){
+    sessionStorage.setItem('reloaded-v3106','1');
     location.reload();
    }
   });

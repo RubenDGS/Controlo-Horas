@@ -655,35 +655,43 @@ function parseReceiptText(text){
  const irs=irsParts.length?irsParts.reduce((a,b)=>a+b,0):null;
  const amounts=money(clean);let subject=null,discounts=null,net=null;
 
- const allNums=(s)=>[...s.matchAll(/(\d{1,3}(?:[.\s]\d{3})*|\d+)[,.](\d{2})/g)]
-   .map(m=>parsePtNumber(m[0]))
-   .filter(v=>Number.isFinite(v));
-
- const around=(label)=>{
-  const n=norm(clean),k=n.indexOf(norm(label));
-  if(k<0)return [];
-  return allNums(clean.slice(Math.max(0,k-120),k+260));
- };
-
- const recVals=around('TOTAL A RECEBER');
- const liqVals=around('TOTAL LIQUIDO');
- const descVals=around('TOTAL DE DESCONTOS');
- const remVals=around('TOTAL DE REMUNERACOES');
-
- if(recVals.length) net=Math.max(...recVals);
- else if(liqVals.length) net=Math.max(...liqVals);
-
- if(descVals.length) discounts=Math.max(...descVals);
- if(remVals.length) subject=Math.max(...remVals);
-
- if(subject!=null && discounts!=null){
-  const calc=subject-discounts;
-  if(calc>=0 && (net==null || Math.abs(net-calc)>0.05)) net=calc;
+ // Regra principal: o líquido final do recibo é o valor que fecha a conta
+ // TOTAL SUJEITO/REMUNERAÇÕES - TOTAL DE DESCONTOS = TOTAL A RECEBER.
+ // Isto evita confundir IRS (ex.: 168,00 €) com o líquido final.
+ const candidates=[];
+ for(let i=0;i<amounts.length;i++){
+  for(let j=0;j<amounts.length;j++){
+   if(i===j)continue;
+   for(let k=0;k<amounts.length;k++){
+    if(k===i||k===j)continue;
+    const a=amounts[i],b=amounts[j],c=amounts[k];
+    if(a>b && c>=200 && Math.abs((a-b)-c)<0.03){
+     candidates.push({subject:a,discounts:b,net:c});
+    }
+   }
+  }
  }
 
+ if(candidates.length){
+  // Preferir o candidato com maior líquido; nos recibos reais corresponde
+  // ao Total a Receber e não a retenções/parcelas intermédias.
+  candidates.sort((x,y)=>y.net-x.net);
+  ({subject,discounts,net}=candidates[0]);
+ }
+
+ // Reforço por rótulo, apenas se a conta aritmética não tiver sido encontrada.
  if(net==null){
-  for(const a of amounts)for(const b of amounts)for(const c of amounts){
-   if(a>b&&Math.abs(a-b-c)<.02){subject=a;discounts=b;net=c}
+  const n=norm(clean);
+  const labels=['TOTAL A RECEBER','TOTAL LIQUIDO','LIQUIDO A RECEBER'];
+  for(const label of labels){
+   const k=n.indexOf(norm(label));
+   if(k<0)continue;
+   const chunk=clean.slice(Math.max(0,k-80),k+260);
+   const vals=money(chunk).filter(v=>v>=200);
+   if(vals.length){
+    net=vals.at(-1);
+    break;
+   }
   }
  }
 
@@ -785,13 +793,10 @@ function comparisonRows(receipt){
 
 function repairStoredReceiptNet(r){
  if(!r?.parsed?.text)return false;
- const oldNet=r.parsed.net==null?null:num(r.parsed.net);
- if(oldNet==null || oldNet<300){
-  const fresh=parseReceiptText(r.parsed.text);
-  if(fresh.net!=null && fresh.net!==r.parsed.net){
-   r.parsed={...r.parsed,...fresh,month:fresh.month||r.parsed.month||r.month};
-   return true;
-  }
+ const fresh=parseReceiptText(r.parsed.text);
+ if(fresh.net!=null && Math.abs(num(fresh.net)-num(r.parsed.net))>0.001){
+  r.parsed={...r.parsed,...fresh,month:fresh.month||r.parsed.month||r.month};
+  return true;
  }
  return false;
 }

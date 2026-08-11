@@ -308,3 +308,13 @@ VERSÃO 3.10.5 — LÍQUIDO DOS RECIBOS CORRIGIDO
 - Recibos já guardados com líquido ausente ou inferior a 300 € são reprocessados automaticamente.
 - Não é necessário apagar nem voltar a importar recibos.
 - Não altera folhas, clientes, despesas, férias/compensações, subsídios ou outros cálculos.
+
+VERSÃO 3.10.6 — TOTAL A RECEBER CORRIGIDO
+- Base integral: v3.10.5.
+- Alteração limitada à identificação do líquido final dos recibos.
+- O líquido passa a ser identificado prioritariamente pela igualdade:
+  remunerações/total sujeito - total de descontos = total a receber.
+- Evita confundir IRS, Segurança Social ou outras parcelas com o líquido.
+- Exemplo do subsídio de férias: 1.500,00 - 333,00 = 1.167,00 €.
+- Recibos já guardados são reprocessados automaticamente a partir do texto existente.
+- Não altera folhas, clientes, despesas, férias/compensações, subsídios, locais, definições ou outros cálculos.
