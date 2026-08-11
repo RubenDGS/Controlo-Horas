@@ -639,8 +639,17 @@ function parseReceiptText(text){
  const line=(label)=>{const i=norm(clean).indexOf(norm(label));return i<0?'':clean.slice(i,i+180)};
  const money=(s)=>[...s.matchAll(/(\d{1,3}(?:[.\s]\d{3})*|\d+)[,.](\d{2})\s*€/g)].map(m=>parsePtNumber(m[0]));
  const baseVals=money(line('Ordenado Base')),base=baseVals.at(-1)??null;
- const extraPart=line('Hora Extra'),extraNums=[...extraPart.matchAll(/(\d+(?:[,.]\d+)?)/g)].map(m=>parsePtNumber(m[1]));
- const extraMoney=money(extraPart),extraHours=extraNums.length?extraNums[0]:null,extraValue=extraMoney.at(-1)??null;
+ // Reconhece "Hora Extra" mesmo quando o PDF perde o símbolo € ou separa colunas.
+ const extraMatch=clean.match(/Hora\s*Extra[\s\S]{0,180}/i);
+ const extraPart=extraMatch?extraMatch[0]:'';
+ const extraNums=[...extraPart.matchAll(/\b(\d+(?:[,.]\d+)?)\b/g)].map(m=>parsePtNumber(m[1]));
+ const extraMoney=money(extraPart);
+ const extraHours=extraNums.length?extraNums[0]:null;
+ // Normalmente: quantidade, valor unitário, remuneração. Preferir o último valor numérico
+ // quando não houver símbolo €, mas ignorar percentagens/códigos muito à frente.
+ let extraValue=extraMoney.length?extraMoney.at(-1):null;
+ if(extraValue==null&&extraNums.length>=3) extraValue=extraNums[2];
+ if(extraValue==null&&extraNums.length>=2) extraValue=extraNums.at(-1);
  const ssVals=money(line('Segurança Social')),ss=ssVals.at(-1)??null;
  const irsParts=[...clean.matchAll(/Imposto\s*S\/Rendimento[\s\S]{0,120}?(\d+(?:[,.]\d{2}))\s*€/gi)].map(m=>parsePtNumber(m[1]));
  const irs=irsParts.length?irsParts.reduce((a,b)=>a+b,0):null;
@@ -661,6 +670,16 @@ async function extractReceipt(file){
  }
  $('receiptProgress').textContent='';return parseReceiptText(text);
 }
+function refreshReceiptParsed(receipt){
+ if(!receipt?.parsed)return receipt?.parsed;
+ const old=receipt.parsed;
+ if(old.extraValue==null&&old.text){
+  const fresh=parseReceiptText(old.text);
+  receipt.parsed={...old,...fresh,month:fresh.month||old.month||receipt.month};
+  if(receipt.parsed.month)receipt.month=receipt.parsed.month;
+ }
+ return receipt.parsed;
+}
 function comparisonRows(receipt){
  const p=salaryMonth(receipt.month);
  const x={label:'Total horas extra',expected:p.grossHours,actual:receipt.extraValue,unit:'€'};
@@ -670,13 +689,14 @@ function comparisonRows(receipt){
 function renderReceipts(){
  let h='<tr><th>Mês</th><th>Ficheiro</th><th>Horas extra</th><th>Líquido</th><th>Resultado</th><th></th></tr>';
  for(const r of [...db.receipts].sort((a,b)=>b.month.localeCompare(a.month))){
+  if(r.parsed)refreshReceiptParsed(r);
   const comp=r.parsed?comparisonRows(r.parsed):[],issues=comp.filter(x=>!x.ok).length;
-  h+=`<tr><td>${r.month||'—'}</td><td>${r.name}</td><td>${r.parsed?.extraHours??'—'}</td><td>${r.parsed?.net!=null?euro(r.parsed.net):'—'}</td><td>${r.parsed?(issues?`⚠️ ${issues} diferenças`:'✅ OK'):'Manual'}</td><td><button onclick="openReceipt('${r.id}')">Abrir</button> <button onclick="showReceiptComparison('${r.id}')">Comparar</button> <button onclick="removeReceipt('${r.id}')">Apagar</button></td></tr>`;
+  h+=`<tr><td>${r.month||'—'}</td><td>${r.name}</td><td>${r.parsed?.extraHours??'—'}</td><td>${r.parsed?.net!=null?euro(r.parsed.net):'—'}</td><td>${r.parsed?(issues?`⚠️ ${issues} ${issues===1?'diferença':'diferenças'}`:'✅ OK'):'Manual'}</td><td><button onclick="openReceipt('${r.id}')">Abrir</button> <button onclick="showReceiptComparison('${r.id}')">Comparar</button> <button onclick="removeReceipt('${r.id}')">Apagar</button></td></tr>`;
  }
  $('receiptsTable').innerHTML=h;const latest=[...db.receipts].sort((a,b)=>b.month.localeCompare(a.month))[0];if(latest)showReceiptComparison(latest.id,false);else $('receiptComparison').innerHTML='<p class="hint">Importa um recibo para comparar.</p>';
 }
 window.showReceiptComparison=function(id,scroll=true){
- const r=db.receipts.find(x=>x.id===id);if(!r?.parsed){$('receiptComparison').innerHTML='<p class="hint">Este recibo não foi lido automaticamente.</p>';return}
+ const r=db.receipts.find(x=>x.id===id);if(r?.parsed)refreshReceiptParsed(r);if(!r?.parsed){$('receiptComparison').innerHTML='<p class="hint">Este recibo não foi lido automaticamente.</p>';return}
  let h='<table><tr><th>Campo</th><th>Calculado pelas folhas</th><th>Recibo</th><th>Diferença</th><th>Estado</th></tr>';
  for(const x of comparisonRows(r.parsed)){const f=v=>x.unit==='€'?euro(v):`${fmt(v)} h`;const d=x.diff==null?'—':(x.diff>0?`+${euro(x.diff)}`:euro(x.diff));h+=`<tr><td>${x.label}</td><td>${f(x.expected)}</td><td>${x.actual==null?'Não encontrado':f(x.actual)}</td><td><strong>${d}</strong></td><td>${x.ok?'✅':'⚠️'}</td></tr>`}
  h+='</table>';$('receiptComparison').innerHTML=h;if(scroll)$('receiptComparison').scrollIntoView({behavior:'smooth'});
