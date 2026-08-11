@@ -655,9 +655,30 @@ function parseReceiptText(text){
  const irs=irsParts.length?irsParts.reduce((a,b)=>a+b,0):null;
  const amounts=money(clean);let subject=null,discounts=null,net=null;
 
- // Regra principal: o líquido final do recibo é o valor que fecha a conta
- // TOTAL SUJEITO/REMUNERAÇÕES - TOTAL DE DESCONTOS = TOTAL A RECEBER.
- // Isto evita confundir IRS (ex.: 168,00 €) com o líquido final.
+ const allMoney=(s)=>[...s.matchAll(/(\d{1,3}(?:[.\s]\d{3})*|\d+)[,.](\d{2})\s*€?/g)]
+   .map(m=>parsePtNumber(m[0]))
+   .filter(v=>Number.isFinite(v));
+
+ // 1) Tentar encontrar explicitamente o bloco final de totais.
+ // Em muitos recibos o "Total a Receber" aparece na 2.ª página, longe das horas extra.
+ const nclean=norm(clean);
+ const totalLabels=['TOTAL A RECEBER','TOTAL LIQUIDO','LIQUIDO A RECEBER'];
+ for(const label of totalLabels){
+  const pos=nclean.lastIndexOf(norm(label));
+  if(pos>=0){
+   const chunk=clean.slice(Math.max(0,pos-500),pos+500);
+   const vals=allMoney(chunk).filter(v=>v>=100);
+   if(vals.length){
+    // Preferir o maior valor do bloco de totais. Nos recibos reais isto corresponde
+    // ao líquido final ou ao total sujeito; validamos em seguida com os descontos.
+    net=Math.max(...vals);
+   }
+   break;
+  }
+ }
+
+ // 2) Procurar relações aritméticas plausíveis no documento inteiro:
+ // total sujeito/remunerações - descontos = líquido.
  const candidates=[];
  for(let i=0;i<amounts.length;i++){
   for(let j=0;j<amounts.length;j++){
@@ -665,34 +686,24 @@ function parseReceiptText(text){
    for(let k=0;k<amounts.length;k++){
     if(k===i||k===j)continue;
     const a=amounts[i],b=amounts[j],c=amounts[k];
-    if(a>b && c>=200 && Math.abs((a-b)-c)<0.03){
+    if(a>b && c>=100 && Math.abs((a-b)-c)<0.03){
      candidates.push({subject:a,discounts:b,net:c});
     }
    }
   }
  }
-
  if(candidates.length){
-  // Preferir o candidato com maior líquido; nos recibos reais corresponde
-  // ao Total a Receber e não a retenções/parcelas intermédias.
   candidates.sort((x,y)=>y.net-x.net);
-  ({subject,discounts,net}=candidates[0]);
+  const best=candidates[0];
+  subject=best.subject;discounts=best.discounts;
+  // Se o valor por rótulo não existir, usar a conta. Se existir mas não bate, preferir a conta.
+  if(net==null || Math.abs((subject-discounts)-net)>0.05) net=best.net;
  }
 
- // Reforço por rótulo, apenas se a conta aritmética não tiver sido encontrada.
+ // 3) Fallback para recibos simples sem horas extra.
  if(net==null){
-  const n=norm(clean);
-  const labels=['TOTAL A RECEBER','TOTAL LIQUIDO','LIQUIDO A RECEBER'];
-  for(const label of labels){
-   const k=n.indexOf(norm(label));
-   if(k<0)continue;
-   const chunk=clean.slice(Math.max(0,k-80),k+260);
-   const vals=money(chunk).filter(v=>v>=200);
-   if(vals.length){
-    net=vals.at(-1);
-    break;
-   }
-  }
+  const vals=amounts.filter(v=>v>=100);
+  if(vals.length) net=Math.max(...vals);
  }
 
  return {month,base,extraHours,extraValue,ss,irs,subject,discounts,net,text:clean};
@@ -794,7 +805,7 @@ function comparisonRows(receipt){
 function repairStoredReceiptNet(r){
  if(!r?.parsed?.text)return false;
  const fresh=parseReceiptText(r.parsed.text);
- if(fresh.net!=null && Math.abs(num(fresh.net)-num(r.parsed.net))>0.001){
+ if(fresh.net!=null && (r.parsed.net==null || Math.abs(num(fresh.net)-num(r.parsed.net))>0.001)){
   r.parsed={...r.parsed,...fresh,month:fresh.month||r.parsed.month||r.month};
   return true;
  }

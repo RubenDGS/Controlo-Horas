@@ -318,3 +318,12 @@ VERSÃO 3.10.6 — TOTAL A RECEBER CORRIGIDO
 - Exemplo do subsídio de férias: 1.500,00 - 333,00 = 1.167,00 €.
 - Recibos já guardados são reprocessados automaticamente a partir do texto existente.
 - Não altera folhas, clientes, despesas, férias/compensações, subsídios, locais, definições ou outros cálculos.
+
+VERSÃO 3.10.7 — LÍQUIDO EM RECIBOS COM HORAS EXTRA
+- Base integral: v3.10.6.
+- Corrige apenas a leitura do líquido final nos recibos que têm salário + horas extra + descontos.
+- Procura o bloco final "TOTAL A RECEBER"/"TOTAL LÍQUIDO", incluindo quando está na 2.ª página.
+- Valida também a relação: total sujeito/remunerações - descontos = líquido.
+- Mantém compatibilidade com recibos simples como janeiro e subsídios.
+- Reprocessa automaticamente recibos já guardados.
+- Não altera folhas, clientes, despesas, férias/compensações, subsídios, locais, definições ou outros cálculos.
