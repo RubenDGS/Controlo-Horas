@@ -712,30 +712,72 @@ $('settingsForm').onsubmit=e=>{
  save();
  message('Definições guardadas.','ok');
 };
-$('backupBtn').onclick=()=>{
- const payload={
-  app:'Controlo Horas e Compensações',
-  backupVersion:1,
-  createdAt:new Date().toISOString(),
-  data:db
- };
- const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
- const url=URL.createObjectURL(blob),a=document.createElement('a');
- a.href=url;
- a.download=`controlo_horas_backup_${today()}.json`;
- document.body.appendChild(a);a.click();a.remove();
- setTimeout(()=>URL.revokeObjectURL(url),1000);
- message(`Cópia de segurança criada: ${db.sheets.length} folhas, ${db.receipts.length} recibos e todas as definições.`,'ok');
+$('backupBtn').onclick=async()=>{
+ try{
+  const now=new Date();
+  const pad=n=>String(n).padStart(2,'0');
+  const stamp=`${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}`;
+  const payload={
+   app:'Controlo Horas e Compensações',
+   backupVersion:2,
+   createdAt:now.toISOString(),
+   appVersion:'3.9.5',
+   data:db
+  };
+  if(typeof JSZip==='undefined')throw new Error('ZIP indisponível');
+  const zip=new JSZip();
+  zip.file('dados.json',JSON.stringify(payload,null,2));
+  zip.file('LEIA-ME.txt',
+`BACKUP COMPLETO — CONTROLO HORAS E COMPENSAÇÕES
+Criado em: ${now.toLocaleString('pt-PT')}
+Versão da aplicação: 3.9.5
+
+Este ficheiro contém os dados guardados pela aplicação neste dispositivo:
+- folhas e respetivos registos guardados
+- recibos e registos
+- despesas
+- pagamentos/correções
+- férias e compensações incluídas na base de dados
+- definições e nome do utilizador
+- meses fechados e restante estado da aplicação
+
+PARA RESTAURAR:
+1. Abra a aplicação Controlo Horas e Compensações.
+2. Carregue em “Restaurar backup completo”.
+3. Escolha este ficheiro ZIP.
+4. Confirme a restauração.
+
+Não é necessário extrair o ZIP.
+`);
+  const blob=await zip.generateAsync({type:'blob',compression:'DEFLATE',compressionOptions:{level:6}});
+  const url=URL.createObjectURL(blob),a=document.createElement('a');
+  a.href=url;a.download=`Backup_Controlo_Horas_${stamp}.zip`;
+  document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+  message(`Backup completo criado: ${db.sheets.length} folhas, ${db.receipts.length} recibos, despesas, definições e restantes dados.`,'ok');
+ }catch(err){
+  message('Não foi possível criar o ZIP. Verifica a ligação à Internet e tenta novamente.','err');
+ }
 };
 $('restoreBtn').onclick=()=>$('restoreInput').click();
 $('restoreInput').onchange=async()=>{
  const f=$('restoreInput').files?.[0];
  if(!f)return;
  try{
-  const raw=JSON.parse(await f.text());
+  let raw;
+  if(f.name.toLowerCase().endsWith('.zip')){
+   if(typeof JSZip==='undefined')throw new Error('ZIP indisponível');
+   const zip=await JSZip.loadAsync(f);
+   const entry=zip.file('dados.json');
+   if(!entry)throw new Error('dados.json ausente');
+   raw=JSON.parse(await entry.async('text'));
+  }else{
+   // Mantém compatibilidade com os backups JSON antigos.
+   raw=JSON.parse(await f.text());
+  }
   const incoming=raw?.data&&raw?.backupVersion?raw.data:raw;
   if(!incoming||typeof incoming!=='object'||!Array.isArray(incoming.sheets))throw new Error('Formato inválido');
-  const ok=confirm(`Restaurar esta cópia de segurança?\n\nFolhas: ${incoming.sheets.length}\nRecibos: ${Array.isArray(incoming.receipts)?incoming.receipts.length:0}\n\nOs dados atuais serão substituídos pelos dados desta cópia.`);
+  const ok=confirm(`Restaurar este backup completo?\n\nFolhas: ${incoming.sheets.length}\nRecibos: ${Array.isArray(incoming.receipts)?incoming.receipts.length:0}\nDespesas: ${Array.isArray(incoming.expenses)?incoming.expenses.length:0}\n\nOs dados atuais deste dispositivo serão substituídos pelos dados do backup.`);
   if(!ok){$('restoreInput').value='';return}
   db={
    ...clone(defaults),
@@ -749,9 +791,10 @@ $('restoreInput').onchange=async()=>{
    closedMonths:Array.isArray(incoming.closedMonths)?incoming.closedMonths:[]
   };
   save();
-  message(`Cópia restaurada: ${db.sheets.length} folhas e ${db.receipts.length} recibos.`,'ok');
- }catch(err){message('Cópia de segurança inválida. Nenhum dado foi alterado.','err')}
- finally{$('restoreInput').value=''}
+  message(`Backup restaurado: ${db.sheets.length} folhas, ${db.receipts.length} recibos e restantes dados.`,'ok');
+ }catch(err){
+  message('Backup inválido ou danificado. Nenhum dado foi alterado.','err');
+ }finally{$('restoreInput').value=''}
 };
 $('closeMonthBtn').onclick=()=>{const m=$('dashMonth').value;if(!m)return;if(!db.closedMonths.includes(m))db.closedMonths.push(m);save()};$('reopenMonthBtn').onclick=()=>{db.closedMonths=db.closedMonths.filter(x=>x!==$('dashMonth').value);save()};$('printMonthBtn').onclick=()=>window.print();
 $('clearBtn').onclick=()=>{if(confirm('Apagar todos os dados?')){db=clone(defaults);save()}};

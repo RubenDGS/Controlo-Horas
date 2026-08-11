@@ -197,3 +197,12 @@ VERSÃO 3.9.4 — HORAS EXTRA PAGAS NO MÊS SEGUINTE
 - Clientes, ajudas de custo, alojamento, subsídio de refeição, despesas, férias e compensações mantêm a lógica anterior.
 - As folhas existentes não são alteradas e não precisam de ser novamente importadas.
 - As horas extra de dezembro transitam para o ordenado de janeiro do ano seguinte.
+
+VERSÃO 3.9.5 — BACKUP COMPLETO PORTÁTIL
+- Base integral: v3.9.4. Não foram alterados cálculos nem regras de horas.
+- “Exportar backup completo” cria um único ZIP com data e hora no nome.
+- Exemplo: Backup_Controlo_Horas_2026-08-11_15-22.zip
+- O ZIP inclui os dados persistentes da aplicação e instruções de restauro.
+- “Restaurar backup completo” aceita o novo ZIP e continua a aceitar backups JSON antigos.
+- Pode guardar o ZIP no telemóvel, PC, Drive, OneDrive, email, etc., e restaurá-lo noutra instalação da aplicação.
+- A restauração pede confirmação antes de substituir os dados do dispositivo.

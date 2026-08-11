@@ -10,7 +10,7 @@
   <link rel="apple-touch-icon" href="icon-192.png">
   <link rel="stylesheet" href="styles.css">
 </head>
-<body><div id="appVersion" style="position:fixed;right:6px;bottom:6px;z-index:9999;font-size:11px;background:#fff;border:1px solid #ccc;border-radius:6px;padding:3px 6px;opacity:.85">v3.9.4</div>
+<body><div id="appVersion" style="position:fixed;right:6px;bottom:6px;z-index:9999;font-size:11px;background:#fff;border:1px solid #ccc;border-radius:6px;padding:3px 6px;opacity:.85">v3.9.5</div>
 <header class="appHeader">
   <div class="brand">
     <img class="brandLogo" src="logotipo.png" alt="Logótipo">
@@ -22,7 +22,7 @@
   </div>
   <div class="headerActions">
     <button id="installBtn" hidden>📲 Instalar</button>
-    <button id="backupBtn">💾 Exportar cópia de segurança</button>
+    <button id="backupBtn">📦 Exportar backup completo</button>
   </div>
 </header>
 
@@ -68,8 +68,8 @@
     <label class="fileBtn">Importar folhas Excel<input id="fileInput" type="file" accept=".xlsx,.xlsm" multiple></label>
     <button id="closeMonthBtn">🔒 Fechar mês</button>
     <button id="reopenMonthBtn">🔓 Reabrir mês</button>
-    <button id="restoreBtn">📥 Restaurar cópia de segurança</button>
-    <input id="restoreInput" type="file" accept=".json" hidden>
+    <button id="restoreBtn">♻️ Restaurar backup completo</button>
+    <input id="restoreInput" type="file" accept=".zip,.json,application/zip,application/json" hidden>
   </div>
   <div id="messages"></div>
   <div id="importPreview" class="modal hidden"></div>
@@ -200,19 +200,20 @@
 
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
-<script src="app.js?v=3.9.4"></script>
+<script src="app.js?v=3.9.5"></script>
 <script>
 (async()=>{
  if(!('serviceWorker' in navigator) || !location.protocol.startsWith('http')) return;
  try{
-  const reg=await navigator.serviceWorker.register('sw.js?v=3.9.4',{updateViaCache:'none'});
+  const reg=await navigator.serviceWorker.register('sw.js?v=3.9.5',{updateViaCache:'none'});
   await reg.update();
   if(reg.waiting) reg.waiting.postMessage({type:'SKIP_WAITING'});
   navigator.serviceWorker.addEventListener('controllerchange',()=>{
-   if(!sessionStorage.getItem('reloaded-v394')){
-    sessionStorage.setItem('reloaded-v394','1');
+   if(!sessionStorage.getItem('reloaded-v395')){
+    sessionStorage.setItem('reloaded-v395','1');
     location.reload();
    }
   });
