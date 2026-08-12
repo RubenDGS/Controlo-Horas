@@ -1080,6 +1080,7 @@ function renderClients(){
  renderClientAnnualStats();
 }
 
+let editingExpenseId=null;
 function foodItemsTotal(items){
  return (Array.isArray(items)?items:[]).reduce((a,x)=>a+num(x?.amount),0);
 }
@@ -1115,11 +1116,14 @@ function updateFoodTotal(){
  $('expenseFoodTotal').textContent=euro(foodItemsTotal(currentFoodItems()));
 }
 function resetFoodItems(){
+ editingExpenseId=null;
  if(!$('foodItems'))return;
  $('foodItems').innerHTML='';
  addFoodItemRow('Pequeno-almoço','');
  addFoodItemRow('Almoço','');
  addFoodItemRow('Jantar','');
+ if($('expenseSaveBtn'))$('expenseSaveBtn').textContent='Guardar despesa';
+ if($('expenseEditHint'))$('expenseEditHint').textContent='Ao guardar novamente a mesma data, as novas despesas são acrescentadas às anteriores.';
  updateFoodTotal();
 }
 
@@ -1134,20 +1138,39 @@ function renderExpenses(){
  let h='<tr><th>Data</th><th>Alimentação</th><th>Detalhe alimentação</th><th>Dormida</th><th>Observação</th><th></th></tr>';
  for(const x of db.expenses.filter(x=>monthOf(x.date)===m).sort((a,b)=>b.date.localeCompare(a.date))){
   const items=expenseFoodItems(x);
-  const detail=items.length
-   ?items.map(it=>`${it.label}: ${euro(it.amount)}`).join('<br>')
-   :'—';
+  const detail=items.length?items.map(it=>`${it.label}: ${euro(it.amount)}`).join('<br>'):'—';
   h+=`<tr>
    <td>${x.date}</td>
    <td><strong>${euro(x.food)}</strong></td>
    <td>${detail}</td>
    <td>${euro(x.sleep)}</td>
    <td>${x.note||''}</td>
-   <td><button onclick="removeExpense('${x.id}')">Apagar</button></td>
+   <td><button onclick="editExpense('${x.id}')">Editar</button> <button onclick="removeExpense('${x.id}')">Apagar</button></td>
   </tr>`;
  }
  $('expensesTable').innerHTML=h;
 };
+function renderLeave(){
+ const used=db.used.reduce((a,x)=>a+num(x.days),0);
+ $('balanceCard').textContent=fmt(balance())+' dias';
+ $('annualLeaveCard').textContent=fmt(annualLeaveAdded())+' dias';
+ $('usedDaysCard').textContent=fmt(used)+' dias';
+ let h='<tr><th>Tipo</th><th>Período</th><th>Dias</th><th>Descrição</th><th></th></tr>';
+ for(const x of [...db.used].sort((a,b)=>b.date.localeCompare(a.date))){
+  h+=`<tr><td>${x.type}</td><td>${x.date}${x.endDate&&x.endDate!==x.date?' a '+x.endDate:''}</td><td>${fmt(x.days)}</td><td>${x.desc||''}</td><td><button onclick="removeLeave('${x.id}')">Apagar</button></td></tr>`;
+ }
+ $('leaveTable').innerHTML=h;
+}
+window.openWaze=function(lat,lon){
+ const appUrl=`waze://?ll=${lat},${lon}&navigate=yes`;
+ const webUrl=`https://waze.com/ul?ll=${lat},${lon}&navigate=yes`;
+ const started=Date.now();
+ window.location.href=appUrl;
+ setTimeout(()=>{
+  if(document.visibilityState==='visible'&&Date.now()-started<3000)window.location.href=webUrl;
+ },1600);
+};
+
 function renderLocations(){
  const q=norm($('locationSearch').value),source=$('locationSource').value;
  const rows=locations.filter(x=>(!source||x.source===source)&&(!q||norm(`${x.name} ${x.address} ${x.source}`).includes(q))).slice(0,100);
@@ -1517,16 +1540,23 @@ async function refreshStoredReceiptNets3116(){
 
 function renderReceiptsTableOnly(){
  let h='<tr><th>Mês</th><th>Ficheiro</th><th>Líquido lido</th><th></th></tr>';
- for(const r of [...db.receipts].sort((a,b)=>(b.month||'').localeCompare(a.month||''))){
-  h+=`<tr><td>${r.month||'—'}</td><td>${r.name}</td><td>${r.parsed?.net!=null?euro(r.parsed.net):'Não encontrado'}</td><td><button onclick="openReceipt('${r.id}')">Abrir</button> <button onclick="removeReceipt('${r.id}')">Apagar</button></td></tr>`;
+ const ordered=[...db.receipts].sort((a,b)=>(b.month||'').localeCompare(a.month||''));
+ if(!ordered.length){
+  h+='<tr><td colspan="4">Ainda não existem recibos guardados.</td></tr>';
+ }else{
+  for(const r of ordered){
+   h+=`<tr><td>${r.month||'—'}</td><td>${r.name}</td><td>${r.parsed?.net!=null?euro(r.parsed.net):'Não encontrado'}</td><td><button onclick="openReceipt('${r.id}')">Abrir</button> <button onclick="removeReceipt('${r.id}')">Apagar</button></td></tr>`;
+  }
  }
  $('receiptsTable').innerHTML=h;
 
  const months=[...new Set(db.receipts.map(r=>r.month).filter(Boolean))].sort().reverse();
  if(!months.length){
   $('receiptComparison').innerHTML='<p class="hint">Importa um recibo. A comparação será feita automaticamente.</p>';
+  renderReceiptArchive();
   return;
  }
+
  let c='<table><tr><th>Mês</th><th>Calculado pela aplicação</th><th>Total dos recibos</th><th>Diferença</th><th>Estado</th></tr>';
  for(const month of months){
   const s=receiptMonthSummary(month);
@@ -1750,26 +1780,67 @@ function showImportPreview(){if(!pendingImports.length)return;const box=$('impor
  pendingImports=[];box.classList.add('hidden');save();
  message('Folhas importadas/substituídas com os totais oficiais da linha 23.','ok')
 };$('cancelImport').onclick=()=>{pendingImports=[];box.classList.add('hidden')}}
+
+window.editExpense=function(id){
+ const x=db.expenses.find(e=>e.id===id);
+ if(!x)return;
+ if(isClosed(monthOf(x.date))){alert('Este mês está validado. Desbloqueia-o antes de editar despesas.');return}
+ editingExpenseId=id;
+ $('expenseDate').value=x.date;
+ $('expenseSleep').value=num(x.sleep);
+ $('expenseNote').value=x.note||'';
+ $('foodItems').innerHTML='';
+ for(const item of expenseFoodItems(x))addFoodItemRow(item.label,item.amount);
+ if(!$('foodItems').children.length)addFoodItemRow('','');
+ if($('expenseSaveBtn'))$('expenseSaveBtn').textContent='Guardar alterações';
+ if($('expenseEditHint'))$('expenseEditHint').textContent='Modo edição: estás a alterar o registo completo deste dia.';
+ updateFoodTotal();
+ window.scrollTo({top:$('expenseForm').offsetTop-20,behavior:'smooth'});
+};
+
 $('expenseForm').onsubmit=e=>{
  e.preventDefault();
  const date=$('expenseDate').value;
  if(date<db.settings.inicioDespesas){alert(`Só são aceites despesas a partir de ${db.settings.inicioDespesas}.`);return}
  if(isClosed(monthOf(date))){alert('Este mês está validado. Desbloqueia-o antes de alterar despesas.');return}
 
- const items=currentFoodItems();
- const food=foodItemsTotal(items);
- const existing=db.expenses.find(x=>x.date===date);
- const obj={
-  id:existing?.id||uid(),
-  date,
-  food,
-  foodItems:items,
-  sleep:num($('expenseSleep').value),
-  note:$('expenseNote').value
- };
+ const enteredItems=currentFoodItems();
+ const existing=editingExpenseId
+   ?db.expenses.find(x=>x.id===editingExpenseId)
+   :db.expenses.find(x=>x.date===date);
 
- // Só altera o dia que está a ser guardado. Os registos antigos ficam intactos.
- existing?Object.assign(existing,obj):db.expenses.push(obj);
+ if(editingExpenseId){
+  // Modo edição explícita: substitui o detalhe desse dia pelo que está no formulário.
+  const obj={
+   id:existing?.id||uid(),
+   date,
+   food:foodItemsTotal(enteredItems),
+   foodItems:enteredItems,
+   sleep:num($('expenseSleep').value),
+   note:$('expenseNote').value
+  };
+  if(existing)Object.assign(existing,obj);else db.expenses.push(obj);
+ }else if(existing){
+  // Guardar novamente a mesma data = ACRESCENTAR às despesas desse dia.
+  const previousItems=expenseFoodItems(existing).map(x=>({label:x.label,amount:num(x.amount)}));
+  const merged=[...previousItems,...enteredItems];
+  existing.foodItems=merged;
+  existing.food=foodItemsTotal(merged);
+
+  // Não apagar dormida/observação anteriores quando os campos ficam vazios numa nova adição.
+  const sleep=num($('expenseSleep').value);
+  if(sleep>0)existing.sleep=sleep;
+  if(String($('expenseNote').value||'').trim())existing.note=$('expenseNote').value;
+ }else{
+  db.expenses.push({
+   id:uid(),date,
+   food:foodItemsTotal(enteredItems),
+   foodItems:enteredItems,
+   sleep:num($('expenseSleep').value),
+   note:$('expenseNote').value
+  });
+ }
+
  save();
  $('expenseSleep').value=0;
  $('expenseNote').value='';

@@ -588,3 +588,23 @@ VERSÃO 3.13.1 — DESPESAS DE ALIMENTAÇÃO DETALHADAS
 - A tabela de despesas mostra o total diário e o detalhe de cada item.
 - Dormida, sobra das deslocações e restantes cálculos mantêm a lógica existente.
 - A chave principal dos dados continua: controloHorasV6.
+
+VERSÃO 3.13.2 — RECIBOS REPÔS + DESPESAS INCREMENTAIS
+- Base integral: v3.13.1.
+- Corrigido um erro introduzido na v3.13.1 que removeu acidentalmente as funções renderLeave e openWaze.
+  Esse erro interrompia o render antes de chegar aos recibos, por isso as tabelas de recibos pareciam ter desaparecido.
+- A lista original de recibos volta a aparecer explicitamente com:
+  * mês;
+  * ficheiro;
+  * líquido lido;
+  * Abrir;
+  * Apagar.
+- O Arquivo anual de recibos continua como funcionalidade adicional e não substitui a lista original.
+- Despesas de alimentação:
+  * guardar novamente a mesma data acrescenta os novos itens aos que já existiam;
+  * pequeno-almoço, almoço, jantar e extras podem ser inseridos ao longo do dia;
+  * o total diário é recalculado automaticamente;
+  * dormida/observação anteriores não são apagadas quando apenas se acrescenta alimentação;
+  * botão Editar permite alterar o registo completo do dia.
+- Despesas antigas continuam compatíveis e não são alteradas automaticamente.
+- Chave principal preservada: controloHorasV6.

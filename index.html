@@ -10,7 +10,7 @@
   <link rel="apple-touch-icon" href="icon-192.png">
   <link rel="stylesheet" href="styles.css">
 </head>
-<body><div id="appVersion" style="position:fixed;right:6px;bottom:6px;z-index:9999;font-size:11px;background:#fff;border:1px solid #ccc;border-radius:6px;padding:3px 6px;opacity:.85">v3.13.1</div>
+<body><div id="appVersion" style="position:fixed;right:6px;bottom:6px;z-index:9999;font-size:11px;background:#fff;border:1px solid #ccc;border-radius:6px;padding:3px 6px;opacity:.85">v3.13.2</div>
 <header class="appHeader">
   <div class="brand">
     <img class="brandLogo" src="logotipo.png" alt="Logótipo">
@@ -140,13 +140,13 @@
         <strong>Alimentação</strong>
         <button type="button" id="addFoodItemBtn">+ Adicionar despesa de alimentação</button>
       </div>
-      <div id="foodItems"></div>
+      <div id="foodItems"></div><p class="note" id="expenseEditHint">Ao guardar novamente a mesma data, as novas despesas são acrescentadas às anteriores.</p>
       <div class="expenseFoodTotal">Total alimentação: <strong id="expenseFoodTotal">0,00 €</strong></div>
     </div>
 
     <label>Dormida (€)<input id="expenseSleep" type="number" min="0" step="0.01" value="0"></label>
     <label>Observação<input id="expenseNote"></label>
-    <button>Guardar despesa</button>
+    <button id="expenseSaveBtn">Guardar despesa</button>
   </form>
 
   <div class="toolbar"><label>Mês <input id="expenseMonth" type="month"></label></div>
@@ -192,7 +192,7 @@
     <label>Ficheiro<input id="receiptFile" type="file" accept=".pdf,image/*,.heic,.heif" required></label>
     <button>Guardar recibo</button>
   </form>
-  <div id="receiptProgress" class="hint"></div><div class="tableWrap"><table id="receiptsTable"></table></div><h2>Comparação automática</h2><div id="receiptComparison" class="tableWrap"></div>
+  <div id="receiptProgress" class="hint"></div><h2>Recibos guardados</h2><div class="tableWrap"><table id="receiptsTable"></table></div><h2>Comparação automática</h2><div id="receiptComparison" class="tableWrap"></div>
 
   <h2>Arquivo anual de recibos</h2>
   <div class="toolbar"><label>Ano <select id="receiptArchiveYear"></select></label></div>
@@ -280,17 +280,17 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
-<script src="app.js?v=3.13.1"></script>
+<script src="app.js?v=3.13.2"></script>
 <script>
 (async()=>{
  if(!('serviceWorker' in navigator) || !location.protocol.startsWith('http')) return;
  try{
-  const reg=await navigator.serviceWorker.register('sw.js?v=3.13.1',{updateViaCache:'none'});
+  const reg=await navigator.serviceWorker.register('sw.js?v=3.13.2',{updateViaCache:'none'});
   await reg.update();
   if(reg.waiting) reg.waiting.postMessage({type:'SKIP_WAITING'});
   navigator.serviceWorker.addEventListener('controllerchange',()=>{
-   if(!sessionStorage.getItem('reloaded-v3131')){
-    sessionStorage.setItem('reloaded-v3131','1');
+   if(!sessionStorage.getItem('reloaded-v3132')){
+    sessionStorage.setItem('reloaded-v3132','1');
     location.reload();
    }
   });
