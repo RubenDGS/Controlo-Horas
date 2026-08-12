@@ -20,3 +20,15 @@
  .chartGrid{grid-template-columns:1fr}
  .chartCard canvas{height:190px}
 }
+
+
+/* v3.13.1 - despesas de alimentação detalhadas */
+.expenseFoodBox{grid-column:1/-1;border:1px solid #d8e5e9;border-radius:12px;padding:12px;background:#fbfdfd}
+.expenseFoodHeader{display:flex;gap:10px;justify-content:space-between;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.foodItemRow{display:grid;grid-template-columns:minmax(160px,1fr) minmax(100px,150px) auto;gap:8px;align-items:center;margin:7px 0}
+.foodItemRow input{width:100%}
+.foodItemRemove{padding:8px 10px}
+.expenseFoodTotal{text-align:right;margin-top:10px;font-size:1.05rem}
+@media(max-width:600px){
+ .foodItemRow{grid-template-columns:1fr 110px auto}
+}

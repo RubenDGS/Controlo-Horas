@@ -10,7 +10,7 @@
   <link rel="apple-touch-icon" href="icon-192.png">
   <link rel="stylesheet" href="styles.css">
 </head>
-<body><div id="appVersion" style="position:fixed;right:6px;bottom:6px;z-index:9999;font-size:11px;background:#fff;border:1px solid #ccc;border-radius:6px;padding:3px 6px;opacity:.85">v3.13.0</div>
+<body><div id="appVersion" style="position:fixed;right:6px;bottom:6px;z-index:9999;font-size:11px;background:#fff;border:1px solid #ccc;border-radius:6px;padding:3px 6px;opacity:.85">v3.13.1</div>
 <header class="appHeader">
   <div class="brand">
     <img class="brandLogo" src="logotipo.png" alt="Logótipo">
@@ -130,14 +130,25 @@
 </section>
 
 <section id="despesas" class="panel">
-  <p class="note">Registo disponível para datas a partir de 01/01/2027. Indica apenas o total diário de alimentação e de dormida.</p>
+  
+  <p class="note">Os registos antigos mantêm o total diário de alimentação exatamente como estão. Nos novos registos podes detalhar várias despesas de alimentação no mesmo dia.</p>
   <form id="expenseForm" class="formGrid">
     <label>Data<input id="expenseDate" type="date" required></label>
-    <label>Alimentação (€)<input id="expenseFood" type="number" min="0" step="0.01" value="0"></label>
+
+    <div class="expenseFoodBox">
+      <div class="expenseFoodHeader">
+        <strong>Alimentação</strong>
+        <button type="button" id="addFoodItemBtn">+ Adicionar despesa de alimentação</button>
+      </div>
+      <div id="foodItems"></div>
+      <div class="expenseFoodTotal">Total alimentação: <strong id="expenseFoodTotal">0,00 €</strong></div>
+    </div>
+
     <label>Dormida (€)<input id="expenseSleep" type="number" min="0" step="0.01" value="0"></label>
     <label>Observação<input id="expenseNote"></label>
     <button>Guardar despesa</button>
   </form>
+
   <div class="toolbar"><label>Mês <input id="expenseMonth" type="month"></label></div>
   <div class="cards">
     <article><span>Ajuda recebida</span><strong id="expenseTravelReceived">0,00 €</strong></article>
@@ -269,17 +280,17 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
-<script src="app.js?v=3.13.0"></script>
+<script src="app.js?v=3.13.1"></script>
 <script>
 (async()=>{
  if(!('serviceWorker' in navigator) || !location.protocol.startsWith('http')) return;
  try{
-  const reg=await navigator.serviceWorker.register('sw.js?v=3.13.0',{updateViaCache:'none'});
+  const reg=await navigator.serviceWorker.register('sw.js?v=3.13.1',{updateViaCache:'none'});
   await reg.update();
   if(reg.waiting) reg.waiting.postMessage({type:'SKIP_WAITING'});
   navigator.serviceWorker.addEventListener('controllerchange',()=>{
-   if(!sessionStorage.getItem('reloaded-v3130')){
-    sessionStorage.setItem('reloaded-v3130','1');
+   if(!sessionStorage.getItem('reloaded-v3131')){
+    sessionStorage.setItem('reloaded-v3131','1');
     location.reload();
    }
   });

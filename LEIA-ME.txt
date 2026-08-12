@@ -576,3 +576,15 @@ SEGURANÇA:
 - Nenhuma migração destrutiva.
 - Nenhuma fórmula de cálculo existente foi alterada.
 - A v3.12.6 deve ser guardada como versão de recuperação.
+
+VERSÃO 3.13.1 — DESPESAS DE ALIMENTAÇÃO DETALHADAS
+- Base integral: v3.13.0.
+- Registos antigos de despesas NÃO são alterados.
+- Nos novos registos podem ser adicionadas várias despesas de alimentação no mesmo dia.
+- O formulário começa com Pequeno-almoço, Almoço e Jantar.
+- O botão “+ Adicionar despesa de alimentação” permite acrescentar quantas linhas forem necessárias.
+- Cada linha tem descrição e valor.
+- O total de alimentação é calculado automaticamente e continua a alimentar exatamente os mesmos resumos mensais/anuais.
+- A tabela de despesas mostra o total diário e o detalhe de cada item.
+- Dormida, sobra das deslocações e restantes cálculos mantêm a lógica existente.
+- A chave principal dos dados continua: controloHorasV6.

@@ -1079,16 +1079,74 @@ function renderClients(){
  $('clientsTable').innerHTML=h;
  renderClientAnnualStats();
 }
-function renderExpenses(){const m=$('expenseMonth').value||currentMonth(),s=expenseSummary(m);$('expenseTravelReceived').textContent=euro(s.travel);$('expenseFoodSpent').textContent=euro(s.food);$('expenseLodgingReceived').textContent=euro(s.lodging);$('expenseSleepSpent').textContent=euro(s.sleep);$('expenseRemain').textContent=euro(s.remain);let h='<tr><th>Data</th><th>Alimentação</th><th>Dormida</th><th>Observação</th><th></th></tr>';for(const x of db.expenses.filter(x=>monthOf(x.date)===m).sort((a,b)=>b.date.localeCompare(a.date))){h+=`<tr><td>${x.date}</td><td>${euro(x.food)}</td><td>${euro(x.sleep)}</td><td>${x.note||''}</td><td><button onclick="removeExpense('${x.id}')">Apagar</button></td></tr>`}$('expensesTable').innerHTML=h}
-function renderLeave(){const used=db.used.reduce((a,x)=>a+num(x.days),0);$('balanceCard').textContent=fmt(balance())+' dias';$('annualLeaveCard').textContent=fmt(annualLeaveAdded())+' dias';$('usedDaysCard').textContent=fmt(used)+' dias';let h='<tr><th>Tipo</th><th>Período</th><th>Dias</th><th>Descrição</th><th></th></tr>';for(const x of [...db.used].sort((a,b)=>b.date.localeCompare(a.date))){h+=`<tr><td>${x.type}</td><td>${x.date}${x.endDate&&x.endDate!==x.date?' a '+x.endDate:''}</td><td>${fmt(x.days)}</td><td>${x.desc||''}</td><td><button onclick="removeLeave('${x.id}')">Apagar</button></td></tr>`}$('leaveTable').innerHTML=h}
-window.openWaze=function(lat,lon){
- const appUrl=`waze://?ll=${lat},${lon}&navigate=yes`;
- const webUrl=`https://waze.com/ul?ll=${lat},${lon}&navigate=yes`;
- const started=Date.now();
- window.location.href=appUrl;
- setTimeout(()=>{
-  if(document.visibilityState==='visible'&&Date.now()-started<3000)window.location.href=webUrl;
- },1600);
+
+function foodItemsTotal(items){
+ return (Array.isArray(items)?items:[]).reduce((a,x)=>a+num(x?.amount),0);
+}
+function expenseFoodItems(x){
+ if(Array.isArray(x?.foodItems)&&x.foodItems.length)return x.foodItems;
+ // Compatibilidade total com despesas antigas: o valor antigo continua intacto.
+ if(num(x?.food)>0)return [{label:'Total alimentação (registo antigo)',amount:num(x.food),legacy:true}];
+ return [];
+}
+function addFoodItemRow(label='',amount=''){
+ if(!$('foodItems'))return;
+ const row=document.createElement('div');
+ row.className='foodItemRow';
+ row.innerHTML=`<input class="foodItemLabel" type="text" placeholder="Ex.: Pequeno-almoço, almoço, jantar, extra" value="${String(label||'').replace(/"/g,'&quot;')}">
+  <input class="foodItemAmount" type="number" min="0" step="0.01" placeholder="0,00" value="${amount!==''?amount:''}">
+  <button type="button" class="foodItemRemove" title="Remover">✕</button>`;
+ row.querySelector('.foodItemRemove').onclick=()=>{row.remove();updateFoodTotal()};
+ row.querySelector('.foodItemAmount').oninput=updateFoodTotal;
+ $('foodItems').appendChild(row);
+ updateFoodTotal();
+}
+function currentFoodItems(){
+ if(!$('foodItems'))return [];
+ return [...$('foodItems').querySelectorAll('.foodItemRow')]
+  .map(row=>({
+   label:String(row.querySelector('.foodItemLabel')?.value||'').trim()||'Alimentação',
+   amount:num(row.querySelector('.foodItemAmount')?.value)
+  }))
+  .filter(x=>x.amount>0);
+}
+function updateFoodTotal(){
+ if(!$('expenseFoodTotal'))return;
+ $('expenseFoodTotal').textContent=euro(foodItemsTotal(currentFoodItems()));
+}
+function resetFoodItems(){
+ if(!$('foodItems'))return;
+ $('foodItems').innerHTML='';
+ addFoodItemRow('Pequeno-almoço','');
+ addFoodItemRow('Almoço','');
+ addFoodItemRow('Jantar','');
+ updateFoodTotal();
+}
+
+function renderExpenses(){
+ const m=$('expenseMonth').value||currentMonth(),s=expenseSummary(m);
+ $('expenseTravelReceived').textContent=euro(s.travel);
+ $('expenseFoodSpent').textContent=euro(s.food);
+ $('expenseLodgingReceived').textContent=euro(s.lodging);
+ $('expenseSleepSpent').textContent=euro(s.sleep);
+ $('expenseRemain').textContent=euro(s.remain);
+
+ let h='<tr><th>Data</th><th>Alimentação</th><th>Detalhe alimentação</th><th>Dormida</th><th>Observação</th><th></th></tr>';
+ for(const x of db.expenses.filter(x=>monthOf(x.date)===m).sort((a,b)=>b.date.localeCompare(a.date))){
+  const items=expenseFoodItems(x);
+  const detail=items.length
+   ?items.map(it=>`${it.label}: ${euro(it.amount)}`).join('<br>')
+   :'—';
+  h+=`<tr>
+   <td>${x.date}</td>
+   <td><strong>${euro(x.food)}</strong></td>
+   <td>${detail}</td>
+   <td>${euro(x.sleep)}</td>
+   <td>${x.note||''}</td>
+   <td><button onclick="removeExpense('${x.id}')">Apagar</button></td>
+  </tr>`;
+ }
+ $('expensesTable').innerHTML=h;
 };
 function renderLocations(){
  const q=norm($('locationSearch').value),source=$('locationSource').value;
@@ -1692,7 +1750,31 @@ function showImportPreview(){if(!pendingImports.length)return;const box=$('impor
  pendingImports=[];box.classList.add('hidden');save();
  message('Folhas importadas/substituídas com os totais oficiais da linha 23.','ok')
 };$('cancelImport').onclick=()=>{pendingImports=[];box.classList.add('hidden')}}
-$('expenseForm').onsubmit=e=>{e.preventDefault();if($('expenseDate').value<db.settings.inicioDespesas){alert(`Só são aceites despesas a partir de ${db.settings.inicioDespesas}.`);return}if(isClosed(monthOf($('expenseDate').value))){alert('Este mês está fechado.');return}const existing=db.expenses.find(x=>x.date===$('expenseDate').value),obj={id:existing?.id||uid(),date:$('expenseDate').value,food:num($('expenseFood').value),sleep:num($('expenseSleep').value),note:$('expenseNote').value};existing?Object.assign(existing,obj):db.expenses.push(obj);save();$('expenseFood').value=0;$('expenseSleep').value=0;$('expenseNote').value=''}
+$('expenseForm').onsubmit=e=>{
+ e.preventDefault();
+ const date=$('expenseDate').value;
+ if(date<db.settings.inicioDespesas){alert(`Só são aceites despesas a partir de ${db.settings.inicioDespesas}.`);return}
+ if(isClosed(monthOf(date))){alert('Este mês está validado. Desbloqueia-o antes de alterar despesas.');return}
+
+ const items=currentFoodItems();
+ const food=foodItemsTotal(items);
+ const existing=db.expenses.find(x=>x.date===date);
+ const obj={
+  id:existing?.id||uid(),
+  date,
+  food,
+  foodItems:items,
+  sleep:num($('expenseSleep').value),
+  note:$('expenseNote').value
+ };
+
+ // Só altera o dia que está a ser guardado. Os registos antigos ficam intactos.
+ existing?Object.assign(existing,obj):db.expenses.push(obj);
+ save();
+ $('expenseSleep').value=0;
+ $('expenseNote').value='';
+ resetFoodItems();
+}
 $('leaveForm').onsubmit=e=>{e.preventDefault();if(isClosed(monthOf($('leaveStart').value))){alert('Este mês está validado. Desbloqueia-o antes de alterar férias/compensações.');return}const obj={id:uid(),type:$('leaveType').value,date:$('leaveStart').value,endDate:$('leaveEnd').value,days:num($('leaveDays').value),desc:$('leaveNote').value};db.used.push(obj);save()}
 function workingDays(a,b){let n=0;if(!a||!b)return n;for(let d=new Date(a+'T12:00:00'),end=new Date(b+'T12:00:00');d<=end;d.setDate(d.getDate()+1))if(d.getDay()!==0&&d.getDay()!==6)n++;return n}
 $('leaveStart').onchange=()=>{if(!$('leaveEnd').value||$('leaveEnd').value<$('leaveStart').value)$('leaveEnd').value=$('leaveStart').value;$('leaveDays').value=workingDays($('leaveStart').value,$('leaveEnd').value)};$('leaveEnd').onchange=()=>$('leaveDays').value=workingDays($('leaveStart').value,$('leaveEnd').value);
@@ -1721,6 +1803,9 @@ $('settingsForm').onsubmit=e=>{
 };
 
 
+
+
+if($('addFoodItemBtn'))$('addFoodItemBtn').onclick=()=>addFoodItemRow('','');
 
 if($('simSalaryBtn'))$('simSalaryBtn').onclick=simulateSalary;
 if($('clientYear'))$('clientYear').onchange=renderClientAnnualStats;
@@ -1888,4 +1973,4 @@ $('globalSearch').oninput=()=>{const q=$('globalSearch').value;if(q.length<2)ret
 let installPrompt=null;window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installPrompt=e;$('installBtn').hidden=false});$('installBtn').onclick=async()=>{if(installPrompt){installPrompt.prompt();await installPrompt.userChoice;installPrompt=null;$('installBtn').hidden=true}else alert('No iPhone: Partilhar → Adicionar ao ecrã principal.')};
 function connection(){if(navigator.onLine){$('connectionStatus').textContent='';$('connectionStatus').className=''}else{$('connectionStatus').textContent='📴 Sem internet: os dados continuam guardados neste dispositivo.';$('connectionStatus').className='offline'}}window.addEventListener('online',connection);window.addEventListener('offline',connection);
 fetch('locations.json').then(r=>r.json()).then(x=>{locations=x;const src=[...new Set(x.map(v=>v.source))].sort();$('locationSource').innerHTML='<option value="">Todas as entidades</option>'+src.map(s=>`<option>${s}</option>`).join('');renderLocations()}).catch(()=>{});
-for(const id of ['dashMonth','expenseMonth','receiptMonth'])$(id).value=currentMonth();$('clientMonth').value=latestSheetMonth();$('expenseDate').value=today();$('leaveStart').value=today();$('leaveEnd').value=today();connection();render();processSharedBackupOnLaunch();
+for(const id of ['dashMonth','expenseMonth','receiptMonth'])$(id).value=currentMonth();$('clientMonth').value=latestSheetMonth();$('expenseDate').value=today();resetFoodItems();$('leaveStart').value=today();$('leaveEnd').value=today();connection();render();processSharedBackupOnLaunch();
