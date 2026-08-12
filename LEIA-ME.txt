@@ -392,3 +392,15 @@ VERSÃO 3.11.3 — LEITURA DOS RECIBOS CORRIGIDA PELOS PDFs REAIS
 - Os recibos já guardados são relidos automaticamente a partir dos PDFs originais,
   sem apagar nem voltar a importar.
 - Nenhuma outra área da aplicação foi alterada.
+
+VERSÃO 3.11.4 — LEITURA POSICIONAL DOS RECIBOS
+- Base integral: v3.11.3.
+- Corrigido o erro que fazia aparecer 1500,00 €.
+- O leitor deixa de depender da ordem do texto devolvido pelo OCR.
+- Usa a posição real dos montantes na imagem:
+  * recibos de 2 páginas: na última página, escolhe o montante mais à direita na zona superior;
+  * recibos de 1 página: escolhe o montante da zona inferior direita.
+- Julho.PDF real: deve ler 1330,22 €.
+- Subsídio de férias real: deve ler 1167,00 €.
+- Todos os recibos antigos são relidos automaticamente com a versão 3114.
+- Não altera qualquer outra área da aplicação.

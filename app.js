@@ -654,6 +654,8 @@ function parseReceiptText(text){
  const irsParts=[...clean.matchAll(/Imposto\s*S\/Rendimento[\s\S]{0,120}?(\d+(?:[,.]\d{2}))\s*€/gi)].map(m=>parsePtNumber(m[1]));
  const irs=irsParts.length?irsParts.reduce((a,b)=>a+b,0):null;
  const amounts=money(clean);let subject=null,discounts=null,net=null;
+ const forcedNet=clean.match(/\[\[NET:(\d+(?:\.\d+)?)\]\]/);
+ if(forcedNet)net=Number(forcedNet[1]);
 
  const pageMatches=[...clean.matchAll(/\[\[PAGE:(\d+)\]\]([\s\S]*?)(?=\[\[PAGE:|$)/g)];
  const pages=pageMatches.map(m=>({n:Number(m[1]),text:m[2]}));
@@ -661,14 +663,14 @@ function parseReceiptText(text){
    .map(m=>parsePtNumber(m[0]))
    .filter(v=>Number.isFinite(v) && v>=50);
 
- if(pages.length>=2){
+ if(net==null && pages.length>=2){
   // RECIBO NORMAL COM HORAS:
   // a página 2 contém os três totais. O último valor monetário dessa página
   // é o Total a Receber. Exemplo real: 1694,63 | 364,41 | 1330,22.
   const lastPage=pages[pages.length-1].text;
   const vals=looseMoney(lastPage);
   if(vals.length) net=vals.at(-1);
- }else{
+ }else if(net==null){
   // RECIBO DE 1 PÁGINA (janeiro, subsídio de férias/Natal, etc.):
   // o Total a Receber é o último valor monetário do recibo.
   const onePage=pages.length?pages[0].text:clean;
@@ -676,11 +678,76 @@ function parseReceiptText(text){
   if(vals.length) net=vals.at(-1);
  }
 
- return {month,base,extraHours,extraValue,ss,irs,subject,discounts,net,text:clean,parserVersion:3113};
+ return {month,base,extraHours,extraValue,ss,irs,subject,discounts,net,text:clean,parserVersion:3114};
 }
 async function extractReceipt(file){
  $('receiptProgress').textContent='A ler o recibo automaticamente…';
  let text='';
+ let netHint=null;
+
+ const ptMoney=s=>{
+  const m=String(s||'').match(/(\d{1,3}(?:[.\s]\d{3})*|\d+)[,.](\d{2})/);
+  return m?parsePtNumber(`${m[1]},${m[2]}`):null;
+ };
+
+ const pickNetFromOcr=(ocr,pageNo,totalPages,canvas)=>{
+  const words=ocr?.data?.words||[];
+  const lines=ocr?.data?.lines||[];
+  const W=canvas?.width||1,H=canvas?.height||1;
+  const candidates=[];
+
+  // Preferir linhas, porque o OCR pode separar o símbolo € da quantia.
+  for(const ln of lines){
+   const v=ptMoney(ln.text);
+   if(v==null||v<50)continue;
+   const b=ln.bbox||{};
+   candidates.push({
+    v,
+    x:(Number(b.x0||0)+Number(b.x1||0))/2,
+    y:(Number(b.y0||0)+Number(b.y1||0))/2,
+    text:ln.text||''
+   });
+  }
+
+  // Fallback para palavras individuais.
+  if(!candidates.length){
+   for(const w of words){
+    const v=ptMoney(w.text);
+    if(v==null||v<50)continue;
+    const b=w.bbox||{};
+    candidates.push({
+     v,
+     x:(Number(b.x0||0)+Number(b.x1||0))/2,
+     y:(Number(b.y0||0)+Number(b.y1||0))/2,
+     text:w.text||''
+    });
+   }
+  }
+
+  if(!candidates.length)return null;
+
+  if(totalPages>=2 && pageNo===totalPages){
+   // Nos recibos Ambicare de 2 páginas, a última página contém os 3 totais
+   // na zona superior. O "Total a Receber" é o montante mais à direita.
+   const top=candidates.filter(c=>c.y < H*0.45);
+   const pool=top.length?top:candidates;
+   pool.sort((a,b)=>b.x-a.x);
+   return pool[0]?.v??null;
+  }
+
+  if(totalPages===1){
+   // Nos recibos de 1 página, o Total a Receber está na zona inferior direita.
+   const bottomRight=candidates.filter(c=>c.y>H*0.55 && c.x>W*0.45);
+   if(bottomRight.length){
+    bottomRight.sort((a,b)=>(b.x-a.x)||(b.y-a.y));
+    return bottomRight[0].v;
+   }
+   const right=[...candidates].sort((a,b)=>b.x-a.x);
+   return right[0]?.v??null;
+  }
+
+  return null;
+ };
 
  if(file.type==='application/pdf'||file.name?.toLowerCase().endsWith('.pdf')){
   const pdfjs=await import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs');
@@ -692,11 +759,10 @@ async function extractReceipt(file){
    const content=await page.getTextContent();
    let pageText=content.items.map(x=>x.str).join(' ').trim();
 
-   // Os recibos reais enviados são PDFs-imagem.
-   // Se a página não tiver texto útil, ler ESSA PÁGINA por OCR.
+   // Estes recibos têm praticamente só imagem. Quando não há texto útil, OCR da página inteira.
    if(pageText.replace(/\s+/g,'').length<40){
     $('receiptProgress').textContent=`A ler página ${p} de ${pdf.numPages}…`;
-    const viewport=page.getViewport({scale:2});
+    const viewport=page.getViewport({scale:2.2});
     const canvas=document.createElement('canvas');
     const ctx=canvas.getContext('2d');
     canvas.width=Math.ceil(viewport.width);
@@ -710,7 +776,10 @@ async function extractReceipt(file){
       }
      }
     });
+
     pageText=result.data.text||'';
+    const hint=pickNetFromOcr(result,p,pdf.numPages,canvas);
+    if(hint!=null)netHint=hint;
    }
 
    text+=`\n[[PAGE:${p}]]\n${pageText}\n`;
@@ -724,11 +793,19 @@ async function extractReceipt(file){
    }
   });
   text=`[[PAGE:1]]\n${result.data.text||''}\n`;
+
+  // Para imagem única, usar posição OCR.
+  const fakeCanvas={width:result.data?.imageSize?.width||1000,height:result.data?.imageSize?.height||1400};
+  const hint=pickNetFromOcr(result,1,1,fakeCanvas);
+  if(hint!=null)netHint=hint;
  }
+
+ if(netHint!=null)text+=`\n[[NET:${netHint.toFixed(2)}]]\n`;
 
  $('receiptProgress').textContent='';
  const parsed=parseReceiptText(text);
- parsed.parserVersion=3113;
+ if(netHint!=null)parsed.net=netHint;
+ parsed.parserVersion=3114;
  return parsed;
 }
 function refreshReceiptParsed(receipt){
@@ -784,9 +861,9 @@ function repairStoredReceiptNet(){return false;}
 let receiptNetRefreshRunning=false;
 let receiptNetRefreshDone=false;
 
-async function refreshStoredReceiptNets3113(){
+async function refreshStoredReceiptNets3114(){
  if(receiptNetRefreshRunning||receiptNetRefreshDone)return;
- const todo=db.receipts.filter(r=>r?.parsed?.parserVersion!==3113 && r.fileKey);
+ const todo=db.receipts.filter(r=>r?.parsed?.parserVersion!==3114 && r.fileKey);
  if(!todo.length){receiptNetRefreshDone=true;return}
 
  receiptNetRefreshRunning=true;
@@ -855,7 +932,7 @@ function receiptMonthSummary(month){
 }
 function renderReceipts(){
  renderReceiptsTableOnly();
- refreshStoredReceiptNets3113();
+ refreshStoredReceiptNets3114();
 }
 function renderSettings(){
  for(const el of $('settingsForm').elements)if(el.name)el.value=db.settings[el.name]??'';
