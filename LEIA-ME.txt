@@ -489,3 +489,13 @@ VERSÃO 3.12.2 — MELHORIA 1/5: BACKUP AUTOMÁTICO DE SEGURANÇA
 - Inclui botão para criar um snapshot manual.
 - Não apaga, converte ou reinicializa os dados existentes.
 - Não altera cálculos, recibos, subsídio de refeição, folhas, clientes ou despesas.
+
+VERSÃO 3.12.3 — MELHORIA 2/5: VALORES USADOS EM CADA MÊS
+- Base integral: v3.12.2 validada.
+- Acrescentadas duas colunas apenas informativas ao Resumo mensal:
+  * Salário base usado.
+  * Valor/hora usado.
+- Os valores são obtidos do histórico salarial já existente para cada mês.
+- Não altera qualquer fórmula ou cálculo.
+- Não altera folhas, recibos, clientes, despesas, backups ou dados guardados.
+- A chave de armazenamento continua: controloHorasV6.

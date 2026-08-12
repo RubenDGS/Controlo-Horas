@@ -1,5 +1,5 @@
-const C='controlo-horas-v3-12-2-backup-seguranca';
-const A=['./','./index.html','./styles.css','./app.js?v=3.12.2','./manifest.webmanifest','./logotipo.png','./icon-192.png','./icon-512.png','./locations.json'];
+const C='controlo-horas-v3-12-3-valores-usados-mes';
+const A=['./','./index.html','./styles.css','./app.js?v=3.12.3','./manifest.webmanifest','./logotipo.png','./icon-192.png','./icon-512.png','./locations.json'];
 const SHARED_CACHE='controlo-horas-shared-backup-v1';
 const SHARED_KEY=new URL('./__shared_backup__.json',self.registration.scope).href;
 
