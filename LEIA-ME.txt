@@ -379,3 +379,16 @@ VERSÃO 3.11.2 — LEITURA SIMPLES DOS RECIBOS
 - 2 páginas: se “Total a Receber” está na pág. 1 e os totais na pág. 2, lê o total da coluna direita.
 - Não usa salário base, horas extra, IRS ou SS para adivinhar o líquido.
 - Mantém todo o resto da aplicação sem alterações.
+
+VERSÃO 3.11.3 — LEITURA DOS RECIBOS CORRIGIDA PELOS PDFs REAIS
+- Base integral: v3.11.2.
+- Alteração apenas na leitura dos recibos.
+- Foi confirmado que os PDFs reais enviados não têm uma camada de texto útil.
+- A aplicação passa a fazer OCR de TODAS as páginas sem texto, não apenas da primeira.
+- Regra para 2 páginas: na página 2, o último montante monetário é o Total a Receber.
+  Exemplo real Julho.PDF: 1694,63 | 364,41 | 1330,22 -> 1330,22 €.
+- Regra para 1 página: o último montante monetário é o Total a Receber.
+  Exemplo real subsídio: 1167,00 €.
+- Os recibos já guardados são relidos automaticamente a partir dos PDFs originais,
+  sem apagar nem voltar a importar.
+- Nenhuma outra área da aplicação foi alterada.

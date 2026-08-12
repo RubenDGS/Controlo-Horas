@@ -655,74 +655,28 @@ function parseReceiptText(text){
  const irs=irsParts.length?irsParts.reduce((a,b)=>a+b,0):null;
  const amounts=money(clean);let subject=null,discounts=null,net=null;
 
- const pageMarkers=[...clean.matchAll(/\[\[PAGE:(\d+)\]\]/g)];
- const pageCount=pageMarkers.length||1;
- const getPage=(n)=>{
-  const rx=new RegExp(`\\[\\[PAGE:${n}\\]\\]([\\s\\S]*?)(?=\\[\\[PAGE:|$)`);
-  return (clean.match(rx)?.[1]||'').replace(/\[\[POS:[\s\S]*?\[\[\/POS\]\]/g,' ');
- };
- const valsWithPos=(n)=>{
-  const rx=new RegExp(`\\[\\[POS:${n}\\]\\]([\\s\\S]*?)\\[\\[\\/POS\\]\\]`);
-  const block=clean.match(rx)?.[1]||'';
-  return block.split('||').map(s=>{
-   const [x,y,...rest]=s.split('::');
-   return {x:Number(x),y:Number(y),raw:rest.join('::'),v:parsePtNumber(rest.join('::'))};
-  }).filter(o=>Number.isFinite(o.v));
- };
+ const pageMatches=[...clean.matchAll(/\[\[PAGE:(\d+)\]\]([\s\S]*?)(?=\[\[PAGE:|$)/g)];
+ const pages=pageMatches.map(m=>({n:Number(m[1]),text:m[2]}));
+ const looseMoney=(s)=>[...s.matchAll(/(\d{1,3}(?:[.\s]\d{3})*|\d+)[,.](\d{2})\s*€?/g)]
+   .map(m=>parsePtNumber(m[0]))
+   .filter(v=>Number.isFinite(v) && v>=50);
 
- if(pageCount>=2){
-  // REGRA ÚNICA PARA RECIBO NORMAL COM HORAS:
-  // títulos na página 1, três totais na página 2.
-  // "Total a Receber" é o total da direita.
-  const p1=getPage(1);
-  const p2vals=valsWithPos(2).filter(o=>o.v>=50);
-  if(/Total\s*a\s*Receber/i.test(p1) && p2vals.length){
-   // Encontrar a linha horizontal com pelo menos 3 montantes e escolher o mais à direita.
-   const groups=[];
-   for(const v of p2vals){
-    let g=groups.find(g=>Math.abs(g.y-v.y)<=20);
-    if(!g){g={y:v.y,vals:[]};groups.push(g)}
-    g.vals.push(v);
-   }
-   const rows=groups.filter(g=>g.vals.length>=3);
-   if(rows.length){
-    // Nos recibos enviados, os totais são a linha de 3 valores da pág. 2.
-    const row=rows.sort((a,b)=>b.y-a.y)[0];
-    net=[...row.vals].sort((a,b)=>b.x-a.x)[0].v;
-   }else{
-    // PDF que perdeu coordenadas úteis: usar os últimos 3 montantes da pág. 2,
-    // sendo o terceiro o Total a Receber.
-    const raw=money(getPage(2)).filter(v=>v>=50);
-    if(raw.length>=3) net=raw.at(-1);
-   }
-  }
+ if(pages.length>=2){
+  // RECIBO NORMAL COM HORAS:
+  // a página 2 contém os três totais. O último valor monetário dessa página
+  // é o Total a Receber. Exemplo real: 1694,63 | 364,41 | 1330,22.
+  const lastPage=pages[pages.length-1].text;
+  const vals=looseMoney(lastPage);
+  if(vals.length) net=vals.at(-1);
  }else{
-  // REGRA ÚNICA PARA RECIBOS DE 1 PÁGINA (normal sem horas ou subsídio):
-  // ler o montante associado a "Total a Receber".
-  const p1=getPage(1)||clean;
-  const mm=p1.match(/Total\s*a\s*Receber[\s\S]{0,160}?(\d{1,3}(?:[.\s]\d{3})*|\d+)[,.](\d{2})/i);
-  if(mm) net=parsePtNumber(`${mm[1]},${mm[2]}`);
-  if(net==null){
-   // Se o PDF extrair primeiro os rótulos e depois os três totais, usar o último
-   // valor da linha/área final, nunca salário base ou hora extra por cálculo.
-   const pos=valsWithPos(1).filter(o=>o.v>=50);
-   if(pos.length && /Total\s*a\s*Receber/i.test(p1)){
-    const groups=[];
-    for(const v of pos){
-     let g=groups.find(g=>Math.abs(g.y-v.y)<=20);
-     if(!g){g={y:v.y,vals:[]};groups.push(g)}
-     g.vals.push(v);
-    }
-    const rows=groups.filter(g=>g.vals.length>=3);
-    if(rows.length){
-     const row=rows.sort((a,b)=>a.y-b.y)[0];
-     net=[...row.vals].sort((a,b)=>b.x-a.x)[0].v;
-    }
-   }
-  }
+  // RECIBO DE 1 PÁGINA (janeiro, subsídio de férias/Natal, etc.):
+  // o Total a Receber é o último valor monetário do recibo.
+  const onePage=pages.length?pages[0].text:clean;
+  const vals=looseMoney(onePage);
+  if(vals.length) net=vals.at(-1);
  }
 
- return {month,base,extraHours,extraValue,ss,irs,subject,discounts,net,text:clean};
+ return {month,base,extraHours,extraValue,ss,irs,subject,discounts,net,text:clean,parserVersion:3113};
 }
 async function extractReceipt(file){
  $('receiptProgress').textContent='A ler o recibo automaticamente…';
@@ -734,40 +688,32 @@ async function extractReceipt(file){
   const pdf=await pdfjs.getDocument({data:await file.arrayBuffer()}).promise;
 
   for(let p=1;p<=pdf.numPages;p++){
-   const page=await pdf.getPage(p),content=await page.getTextContent();
-   const items=content.items.map(x=>({str:x.str,x:x.transform?.[4]??0,y:x.transform?.[5]??0}));
-   const pageText=items.map(x=>x.str).join(' ');
+   const page=await pdf.getPage(p);
+   const content=await page.getTextContent();
+   let pageText=content.items.map(x=>x.str).join(' ').trim();
+
+   // Os recibos reais enviados são PDFs-imagem.
+   // Se a página não tiver texto útil, ler ESSA PÁGINA por OCR.
+   if(pageText.replace(/\s+/g,'').length<40){
+    $('receiptProgress').textContent=`A ler página ${p} de ${pdf.numPages}…`;
+    const viewport=page.getViewport({scale:2});
+    const canvas=document.createElement('canvas');
+    const ctx=canvas.getContext('2d');
+    canvas.width=Math.ceil(viewport.width);
+    canvas.height=Math.ceil(viewport.height);
+    await page.render({canvasContext:ctx,viewport}).promise;
+
+    const result=await Tesseract.recognize(canvas,'por',{
+     logger:m=>{
+      if(m.status==='recognizing text'){
+       $('receiptProgress').textContent=`A ler página ${p}/${pdf.numPages}: ${Math.round((m.progress||0)*100)}%`;
+      }
+     }
+    });
+    pageText=result.data.text||'';
+   }
+
    text+=`\n[[PAGE:${p}]]\n${pageText}\n`;
-
-   // Guardar também os valores monetários com posição horizontal.
-   // Isto é necessário nos recibos Ambicare: os cabeçalhos dos totais ficam na pág. 1
-   // e os três valores correspondentes aparecem isolados na pág. 2.
-   const positioned=items
-     .filter(it=>/\d[\d.\s]*[,\.]\d{2}\s*€?/.test(it.str))
-     .map(it=>`${it.x.toFixed(1)}::${it.y.toFixed(1)}::${it.str}`)
-     .join('||');
-   text+=`\n[[POS:${p}]]${positioned}[[/POS]]\n`;
-  }
-
-  // Alguns recibos PDF são essencialmente imagem e o PDF.js devolve pouco/nenhum texto.
-  // Nesses casos fazemos OCR da primeira página, onde está a rubrica "Hora Extra".
-  if(!/Hora\s*Extra/i.test(text) || text.replace(/\s+/g,'').length<80){
-   $('receiptProgress').textContent='A ler o recibo por imagem…';
-   const page=await pdf.getPage(1);
-   const viewport=page.getViewport({scale:2});
-   const canvas=document.createElement('canvas');
-   const ctx=canvas.getContext('2d');
-   canvas.width=Math.ceil(viewport.width);
-   canvas.height=Math.ceil(viewport.height);
-   await page.render({canvasContext:ctx,viewport}).promise;
-
-   const result=await Tesseract.recognize(canvas,'por',{
-    logger:m=>{
-     if(m.status==='recognizing text')
-      $('receiptProgress').textContent=`A ler recibo: ${Math.round((m.progress||0)*100)}%`;
-    }
-   });
-   text+=' '+result.data.text;
   }
  }else{
   const result=await Tesseract.recognize(file,'por',{
@@ -777,11 +723,13 @@ async function extractReceipt(file){
      :'A preparar leitura…';
    }
   });
-  text=result.data.text;
+  text=`[[PAGE:1]]\n${result.data.text||''}\n`;
  }
 
  $('receiptProgress').textContent='';
- return parseReceiptText(text);
+ const parsed=parseReceiptText(text);
+ parsed.parserVersion=3113;
+ return parsed;
 }
 function refreshReceiptParsed(receipt){
  if(!receipt?.parsed)return receipt?.parsed;
@@ -829,14 +777,70 @@ function comparisonRows(receipt){
  return [{...x,diff:x.actual==null?null:x.actual-x.expected,ok:x.actual!=null&&Math.abs(x.actual-x.expected)<0.05}];
 }
 
-function repairStoredReceiptNet(r){
- if(!r?.parsed?.text)return false;
- const fresh=parseReceiptText(r.parsed.text);
- if(fresh.net!=null && (r.parsed.net==null || Math.abs(num(fresh.net)-num(r.parsed.net))>0.001)){
-  r.parsed={...r.parsed,...fresh,month:fresh.month||r.parsed.month||r.month};
-  return true;
+function repairStoredReceiptNet(){return false;}
+
+
+
+let receiptNetRefreshRunning=false;
+let receiptNetRefreshDone=false;
+
+async function refreshStoredReceiptNets3113(){
+ if(receiptNetRefreshRunning||receiptNetRefreshDone)return;
+ const todo=db.receipts.filter(r=>r?.parsed?.parserVersion!==3113 && r.fileKey);
+ if(!todo.length){receiptNetRefreshDone=true;return}
+
+ receiptNetRefreshRunning=true;
+ try{
+  let changed=false;
+  for(let i=0;i<todo.length;i++){
+   const r=todo[i];
+   const blob=await getStoredFile(r.fileKey);
+   if(!blob)continue;
+   $('receiptProgress').textContent=`A atualizar leitura dos recibos: ${i+1}/${todo.length}…`;
+   try{
+    const f=new File([blob],r.name||'recibo.pdf',{type:blob.type||r.type||'application/pdf'});
+    const fresh=await extractReceipt(f);
+    fresh.month=fresh.month||r.month||r.parsed?.month;
+    r.parsed={...r.parsed,...fresh};
+    if(fresh.month)r.month=fresh.month;
+    changed=true;
+   }catch(err){}
+  }
+  if(changed){
+   localStorage.setItem(KEY,JSON.stringify(db));
+  }
+ }finally{
+  receiptNetRefreshRunning=false;
+  receiptNetRefreshDone=true;
+  $('receiptProgress').textContent='';
+  renderReceiptsTableOnly();
  }
- return false;
+}
+
+function renderReceiptsTableOnly(){
+ let h='<tr><th>Mês</th><th>Ficheiro</th><th>Líquido lido</th><th></th></tr>';
+ for(const r of [...db.receipts].sort((a,b)=>(b.month||'').localeCompare(a.month||''))){
+  h+=`<tr><td>${r.month||'—'}</td><td>${r.name}</td><td>${r.parsed?.net!=null?euro(r.parsed.net):'Não encontrado'}</td><td><button onclick="openReceipt('${r.id}')">Abrir</button> <button onclick="removeReceipt('${r.id}')">Apagar</button></td></tr>`;
+ }
+ $('receiptsTable').innerHTML=h;
+
+ const months=[...new Set(db.receipts.map(r=>r.month).filter(Boolean))].sort().reverse();
+ if(!months.length){
+  $('receiptComparison').innerHTML='<p class="hint">Importa um recibo. A comparação será feita automaticamente.</p>';
+  return;
+ }
+ let c='<table><tr><th>Mês</th><th>Calculado pela aplicação</th><th>Total dos recibos</th><th>Diferença</th><th>Estado</th></tr>';
+ for(const month of months){
+  const s=receiptMonthSummary(month);
+  const d=s.diff==null?'—':`${s.diff>0?'+':''}${euro(s.diff)}`;
+  let state='⚠️ Total não encontrado';
+  if(s.actual!=null&&!s.complete)state='⚠️ Falta 1 recibo do mês';
+  else if(s.actual!=null&&Math.abs(s.diff)<0.05)state='✅ OK';
+  else if(s.actual!=null)state='⚠️ Verificar';
+  c+=`<tr><td>${month}</td><td>${euro(s.expected)}</td><td>${s.actual==null?'Não encontrado':euro(s.actual)}</td><td><strong>${d}</strong></td><td>${state}</td></tr>`;
+ }
+ c+='</table>';
+ $('receiptComparison').innerHTML=c;
 }
 
 function receiptMonthSummary(month){
@@ -850,29 +854,8 @@ function receiptMonthSummary(month){
  return{items,actual,expected,diff,special,complete};
 }
 function renderReceipts(){
- let repaired=false;
- for(const r of db.receipts)if(repairStoredReceiptNet(r))repaired=true;
- if(repaired)localStorage.setItem(KEY,JSON.stringify(db));
- let h='<tr><th>Mês</th><th>Ficheiro</th><th>Líquido lido</th><th></th></tr>';
- for(const r of [...db.receipts].sort((a,b)=>(b.month||'').localeCompare(a.month||''))){
-  h+=`<tr><td>${r.month||'—'}</td><td>${r.name}</td><td>${r.parsed?.net!=null?euro(r.parsed.net):'Não encontrado'}</td><td><button onclick="openReceipt('${r.id}')">Abrir</button> <button onclick="removeReceipt('${r.id}')">Apagar</button></td></tr>`;
- }
- $('receiptsTable').innerHTML=h;
-
- const months=[...new Set(db.receipts.map(r=>r.month).filter(Boolean))].sort().reverse();
- if(!months.length){$('receiptComparison').innerHTML='<p class="hint">Importa um recibo. A comparação será feita automaticamente.</p>';return}
- let c='<table><tr><th>Mês</th><th>Calculado pela aplicação</th><th>Total dos recibos</th><th>Diferença</th><th>Estado</th></tr>';
- for(const month of months){
-  const s=receiptMonthSummary(month);
-  const d=s.diff==null?'—':`${s.diff>0?'+':''}${euro(s.diff)}`;
-  let state='⚠️ Total não encontrado';
-  if(s.actual!=null&&!s.complete)state='⚠️ Falta 1 recibo do mês';
-  else if(s.actual!=null&&Math.abs(s.diff)<0.05)state='✅ OK';
-  else if(s.actual!=null)state='⚠️ Verificar';
-  c+=`<tr><td>${month}</td><td>${euro(s.expected)}</td><td>${s.actual==null?'Não encontrado':euro(s.actual)}</td><td><strong>${d}</strong></td><td>${state}</td></tr>`;
- }
- c+='</table>';
- $('receiptComparison').innerHTML=c;
+ renderReceiptsTableOnly();
+ refreshStoredReceiptNets3113();
 }
 function renderSettings(){
  for(const el of $('settingsForm').elements)if(el.name)el.value=db.settings[el.name]??'';

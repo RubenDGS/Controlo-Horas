@@ -1,5 +1,5 @@
-const C='controlo-horas-v3-11-2-leitura-simples-recibos';
-const A=['./','./index.html','./styles.css','./app.js?v=3.11.2','./manifest.webmanifest','./logotipo.png','./icon-192.png','./icon-512.png','./locations.json'];
+const C='controlo-horas-v3-11-3-recibos-resolvido';
+const A=['./','./index.html','./styles.css','./app.js?v=3.11.3','./manifest.webmanifest','./logotipo.png','./icon-192.png','./icon-512.png','./locations.json'];
 const SHARED_CACHE='controlo-horas-shared-backup-v1';
 const SHARED_KEY=new URL('./__shared_backup__.json',self.registration.scope).href;
 
