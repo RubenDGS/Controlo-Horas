@@ -665,6 +665,168 @@ async function shareClientsPdf(){
  message('O PDF foi guardado. O navegador deste dispositivo não permite enviá-lo diretamente pela partilha.','ok');
 }
 
+
+function annualPdfData(year){
+ const months=[];
+ const totals={
+  net:0,normal:0,h25:0,h125:0,h1375:0,h150:0,h165:0,
+  meal:0,travel:0,lodging:0,expenseFood:0,expenseSleep:0,expenseRemain:0,
+  receiptActual:0,receiptExpected:0,receiptDiff:0
+ };
+
+ for(let mo=1;mo<=12;mo++){
+  const m=`${year}-${String(mo).padStart(2,'0')}`;
+  const p=salaryMonth(m);
+  const exp=expenseSummary(m);
+  const rec=receiptMonthSummary(m);
+  const extra=num(p.h25)+num(p.h125)+num(p.h1375)+num(p.h150)+num(p.h165);
+  const totalHours=num(p.normal)+extra;
+  const meal=mealDays(m)*num(db.settings.refeicaoDia);
+
+  const row={
+   m,
+   base:salaryAt(m),
+   hour:hourlyAt(m),
+   net:(num(p.net)>=300&&num(p.net)<=5000)?num(p.net):0,
+   normal:num(p.normal),h25:num(p.h25),h125:num(p.h125),h1375:num(p.h1375),h150:num(p.h150),h165:num(p.h165),
+   extra,totalHours,meal,travel:num(p.travel),lodging:num(p.lodging),
+   expenseFood:num(exp.food),expenseSleep:num(exp.sleep),expenseRemain:num(exp.remain),
+   receiptActual:rec.actual==null?0:num(rec.actual),
+   receiptExpected:num(rec.expected),
+   receiptDiff:rec.diff==null?0:num(rec.diff)
+  };
+  months.push(row);
+
+  for(const k of ['net','normal','h25','h125','h1375','h150','h165','meal','travel','lodging','expenseFood','expenseSleep','expenseRemain','receiptActual','receiptExpected','receiptDiff']){
+   totals[k]+=num(row[k]);
+  }
+ }
+
+ const usedYear=(db.used||[]).filter(x=>{
+  const d=x.start||x.date||x.from||'';
+  return String(d).startsWith(String(year));
+ });
+ totals.usedDays=usedYear.reduce((a,x)=>a+num(x.days),0);
+ totals.balance=balance();
+
+ return {months,totals};
+}
+
+async function buildAnnualPdf(){
+ const year=String($('payYear').value||new Date().getFullYear());
+ if(!window.jspdf?.jsPDF){
+  message('O gerador de PDF ainda não carregou. Confirma a ligação à Internet e tenta novamente.','err');
+  return null;
+ }
+ const {jsPDF}=window.jspdf;
+ const doc=new jsPDF({orientation:'landscape',unit:'mm',format:'a4'});
+ const brand=[11,94,117],dark=[7,63,80],soft=[233,245,247];
+ const nome=String(db.settings.nomeUtilizador||'Utilizador').trim()||'Utilizador';
+ const data=annualPdfData(year);
+
+ doc.setFillColor(...brand);doc.rect(0,0,297,31,'F');
+ const logo=await imageToDataUrl('logotipo.png');
+ if(logo){
+  try{
+   const logoW=48,logoRatio=1796/369,logoH=logoW/logoRatio,logoY=6+(18-logoH)/2;
+   doc.addImage(logo,'PNG',12,logoY,logoW,logoH,undefined,'FAST');
+  }catch{}
+ }
+ doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(17);
+ doc.text('Resumo Anual',68,13);
+ doc.setFont('helvetica','normal');doc.setFontSize(10.5);
+ doc.text(`Utilizador: ${nome}`,68,20);
+ doc.text(`Ano: ${year}`,68,26);
+
+ const t=data.totals;
+ const totalExtra=t.h25+t.h125+t.h1375+t.h150+t.h165;
+ const totalHours=t.normal+totalExtra;
+
+ const cards=[
+  ['Líquido calculado',euro(t.net)],
+  ['Horas extra',`${fmt(totalExtra)} h`],
+  ['Total de horas',`${fmt(totalHours)} h`],
+  ['Subsídio refeição',euro(t.meal)],
+  ['Ajudas de custo',euro(t.travel)],
+  ['Alojamento',euro(t.lodging)],
+  ['Sobra deslocações',euro(t.expenseRemain)],
+  ['Saldo férias/comp.',`${fmt(t.balance)} dias`]
+ ];
+ let x=10,y=38;
+ doc.setFontSize(8.5);
+ for(let idx=0;idx<cards.length;idx++){
+  const [lab,val]=cards[idx];
+  doc.setFillColor(...soft);doc.roundedRect(x,y,32,14,2,2,'F');
+  doc.setTextColor(...dark);doc.setFont('helvetica','normal');doc.text(lab,x+2,y+5);
+  doc.setFont('helvetica','bold');doc.text(val,x+2,y+11);
+  x+=35;
+  if(idx===3){x=10;y+=17}
+ }
+
+ const head=[['Mês','Salário base','€/h','Líquido','100%','25%','125%','137,5%','150%','165%','Extra','Subs. ref.','Ajudas','Aloj.','Dif. recibo']];
+ const body=data.months.map(r=>[
+  r.m,euro(r.base),euro(r.hour),euro(r.net),
+  fmt(r.normal),fmt(r.h25),fmt(r.h125),fmt(r.h1375),fmt(r.h150),fmt(r.h165),
+  fmt(r.extra),euro(r.meal),euro(r.travel),euro(r.lodging),
+  r.receiptActual?euro(r.receiptDiff):'—'
+ ]);
+ body.push([
+  'TOTAL','','',euro(t.net),fmt(t.normal),fmt(t.h25),fmt(t.h125),fmt(t.h1375),fmt(t.h150),fmt(t.h165),
+  fmt(totalExtra),euro(t.meal),euro(t.travel),euro(t.lodging),euro(t.receiptDiff)
+ ]);
+
+ doc.autoTable({
+  head,body,startY:74,margin:{left:7,right:7},theme:'grid',
+  styles:{font:'helvetica',fontSize:6.4,cellPadding:1.6,textColor:dark,lineColor:[213,228,232],lineWidth:.15,halign:'center'},
+  headStyles:{fillColor:soft,textColor:dark,fontStyle:'bold',lineColor:brand,lineWidth:.25},
+  alternateRowStyles:{fillColor:[248,251,252]},
+  didParseCell:(d)=>{
+   if(d.section==='body' && Array.isArray(d.row.raw) && String(d.row.raw[0])==='TOTAL'){
+    d.cell.styles.fillColor=brand;d.cell.styles.textColor=[255,255,255];d.cell.styles.fontStyle='bold';
+   }
+  }
+ });
+
+ // Página 2: despesas e comparação de recibos
+ doc.addPage('a4','landscape');
+ doc.setFillColor(...brand);doc.rect(0,0,297,24,'F');
+ doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(15);
+ doc.text(`Detalhe anual ${year}`,12,15);
+
+ const head2=[['Mês','Gasto alimentação','Gasto dormida','Sobra deslocações','Calculado aplicação','Total recibos','Diferença']];
+ const body2=data.months.map(r=>[
+  r.m,euro(r.expenseFood),euro(r.expenseSleep),euro(r.expenseRemain),
+  euro(r.receiptExpected),r.receiptActual?euro(r.receiptActual):'—',r.receiptActual?euro(r.receiptDiff):'—'
+ ]);
+ body2.push(['TOTAL',euro(t.expenseFood),euro(t.expenseSleep),euro(t.expenseRemain),euro(t.receiptExpected),euro(t.receiptActual),euro(t.receiptDiff)]);
+
+ doc.autoTable({
+  head:head2,body:body2,startY:31,margin:{left:12,right:12},theme:'grid',
+  styles:{font:'helvetica',fontSize:8,cellPadding:2,textColor:dark,lineColor:[213,228,232],lineWidth:.2,halign:'center'},
+  headStyles:{fillColor:soft,textColor:dark,fontStyle:'bold',lineColor:brand,lineWidth:.25},
+  alternateRowStyles:{fillColor:[248,251,252]},
+  didParseCell:(d)=>{
+   if(d.section==='body' && Array.isArray(d.row.raw) && String(d.row.raw[0])==='TOTAL'){
+    d.cell.styles.fillColor=brand;d.cell.styles.textColor=[255,255,255];d.cell.styles.fontStyle='bold';
+   }
+  }
+ });
+
+ const fy=195;
+ doc.setDrawColor(...brand);doc.line(12,fy,285,fy);
+ doc.setTextColor(95,119,128);doc.setFontSize(7.5);doc.setFont('helvetica','normal');
+ doc.text('Gerado pela aplicação Controlo Horas e Compensações',12,fy+5);
+ doc.text(`Data: ${new Intl.DateTimeFormat('pt-PT').format(new Date())}`,285,fy+5,{align:'right'});
+
+ return {doc,year,nome};
+}
+async function downloadAnnualPdf(){
+ const built=await buildAnnualPdf();if(!built)return;
+ const safe=built.nome.replace(/[^\p{L}\p{N}]+/gu,'_');
+ built.doc.save(`resumo_anual_${safe}_${built.year}.pdf`);
+ message(`Resumo anual de ${built.year} criado em PDF.`,'ok');
+}
+
 function renderClients(){
  const m=$('clientMonth').value||latestSheetMonth(),q=norm($('clientFilter').value),groups={};
  if(!$('clientMonth').value)$('clientMonth').value=m;
@@ -1493,7 +1655,7 @@ $('restoreInput').onchange=async()=>{
 };
 $('closeMonthBtn').onclick=()=>{const m=$('dashMonth').value;if(!m)return;if(!db.closedMonths.includes(m))db.closedMonths.push(m);save()};$('reopenMonthBtn').onclick=()=>{db.closedMonths=db.closedMonths.filter(x=>x!==$('dashMonth').value);save()};$('printMonthBtn').onclick=()=>window.print();
 $('clearBtn').onclick=()=>{if(confirm('Apagar todos os dados?')){db=clone(defaults);save()}};
-['dashMonth','clientMonth','expenseMonth'].forEach(id=>$(id).onchange=render);$('payYear').onchange=renderPayments;$('sheetSearch').oninput=renderSheets;$('clientFilter').oninput=renderClients;$('downloadClientsBtn').onclick=downloadClientsPdf;$('locationSearch').oninput=renderLocations;$('locationSource').onchange=renderLocations;
+['dashMonth','clientMonth','expenseMonth'].forEach(id=>$(id).onchange=render);$('payYear').onchange=renderPayments;$('sheetSearch').oninput=renderSheets;$('clientFilter').oninput=renderClients;$('downloadClientsBtn').onclick=downloadClientsPdf;$('annualPdfBtn').onclick=downloadAnnualPdf;$('locationSearch').oninput=renderLocations;$('locationSource').onchange=renderLocations;
 $('globalSearch').oninput=()=>{const q=$('globalSearch').value;if(q.length<2)return;const loc=locations.find(x=>norm(x.name).includes(norm(q))),sheet=db.sheets.find(x=>norm(`${x.cliente} ${x.local} ${x.name}`).includes(norm(q)));if(loc){document.querySelector('[data-tab="locais"]').click();$('locationSearch').value=q;renderLocations()}else if(sheet){document.querySelector('[data-tab="folhas"]').click();$('sheetSearch').value=q;renderSheets()}};
 let installPrompt=null;window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installPrompt=e;$('installBtn').hidden=false});$('installBtn').onclick=async()=>{if(installPrompt){installPrompt.prompt();await installPrompt.userChoice;installPrompt=null;$('installBtn').hidden=true}else alert('No iPhone: Partilhar → Adicionar ao ecrã principal.')};
 function connection(){if(navigator.onLine){$('connectionStatus').textContent='';$('connectionStatus').className=''}else{$('connectionStatus').textContent='📴 Sem internet: os dados continuam guardados neste dispositivo.';$('connectionStatus').className='offline'}}window.addEventListener('online',connection);window.addEventListener('offline',connection);

@@ -521,3 +521,19 @@ VERSÃO 3.12.5 — MELHORIA 4/5: VERIFICAÇÃO DE INTEGRIDADE
 - Mostra contagens de folhas, recibos, clientes/locais, despesas e férias/compensações.
 - A verificação é apenas de leitura: não altera, corrige nem apaga dados.
 - Mantém a mesma chave de armazenamento: controloHorasV6.
+
+VERSÃO 3.12.6 — MELHORIA 5/5: RESUMO ANUAL EM PDF
+- Base integral: v3.12.5 validada.
+- Adicionado botão “Resumo anual PDF” na área Recebimentos.
+- Usa o ano selecionado.
+- PDF inclui:
+  * salário base e valor/hora usados por mês;
+  * líquido calculado;
+  * horas por tipo e total extra;
+  * subsídio de refeição;
+  * ajudas de custo e alojamento;
+  * despesas e sobra das deslocações;
+  * comparação entre aplicação e recibos;
+  * saldo férias/compensações.
+- O PDF é apenas uma exportação. Não altera qualquer dado ou cálculo.
+- Mantém a mesma chave de armazenamento: controloHorasV6.
