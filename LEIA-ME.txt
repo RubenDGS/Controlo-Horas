@@ -480,3 +480,12 @@ VERSÃO 3.12.1 — CORREÇÃO DE ARRANQUE
 - Não existe qualquer código de reset, limpeza ou eliminação de folhas/recibos/dados.
 - Mantém histórico salarial, valor/hora automático e deteção de duplicados por período.
 - Mantém todas as correções anteriores.
+
+VERSÃO 3.12.2 — MELHORIA 1/5: BACKUP AUTOMÁTICO DE SEGURANÇA
+- Base integral: v3.12.1 estável.
+- Mantém a mesma chave principal de dados: controloHorasV6.
+- Guarda até 5 snapshots automáticos no próprio dispositivo antes de operações importantes.
+- Cria snapshot antes de alteração salarial e, quando detetado no fluxo, antes de restauro/importação.
+- Inclui botão para criar um snapshot manual.
+- Não apaga, converte ou reinicializa os dados existentes.
+- Não altera cálculos, recibos, subsídio de refeição, folhas, clientes ou despesas.

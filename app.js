@@ -52,6 +52,34 @@ let db=load(),locations=[],pendingImports=[];
 })();
 normalizeStoredSheetHours();
 function clone(x){return JSON.parse(JSON.stringify(x))}
+
+const SAFETY_KEY='controloHorasV6SafetyBackups';
+function createSafetyBackup(reason='Alteração importante'){
+ try{
+  const raw=localStorage.getItem(KEY);
+  if(!raw)return null;
+  const parsed=JSON.parse(raw);
+  const entry={created:new Date().toISOString(),reason,data:parsed};
+  let list=[];
+  try{list=JSON.parse(localStorage.getItem(SAFETY_KEY)||'[]')}catch{}
+  if(!Array.isArray(list))list=[];
+  list.unshift(entry);
+  // Guardar apenas as 5 cópias mais recentes para não encher o armazenamento.
+  list=list.slice(0,5);
+  localStorage.setItem(SAFETY_KEY,JSON.stringify(list));
+  return entry;
+ }catch(err){
+  console.warn('Não foi possível criar backup automático de segurança:',err);
+  return null;
+ }
+}
+function safetyBackupCount(){
+ try{
+  const x=JSON.parse(localStorage.getItem(SAFETY_KEY)||'[]');
+  return Array.isArray(x)?x.length:0;
+ }catch{return 0}
+}
+
 function load(){try{const o=JSON.parse(localStorage.getItem(KEY)||'{}');return {...clone(defaults),...o,settings:{...defaults.settings,...(o.settings||{})},sheets:Array.isArray(o.sheets)?o.sheets:[],used:Array.isArray(o.used)?o.used:[],payments:Array.isArray(o.payments)?o.payments:[],expenses:Array.isArray(o.expenses)?o.expenses:[],receipts:Array.isArray(o.receipts)?o.receipts:[],closedMonths:Array.isArray(o.closedMonths)?o.closedMonths:[]}}catch{return clone(defaults)}}
 function save(){localStorage.setItem(KEY,JSON.stringify(db));render()}
 function num(v){if(typeof v==='number')return Number.isFinite(v)?v:0;if(v===null||v===undefined||v==='')return 0;const x=Number(String(v).trim().replace(/\s/g,'').replace(/€/g,'').replace(/\.(?=\d{3}(?:\D|$))/g,'').replace(',','.'));return Number.isFinite(x)?x:0}
@@ -212,6 +240,7 @@ function salaryAt(dateOrMonth){
 function hourlyFromSalary(salary){const s=num(salary);return s>0?Math.round((s*(8.65/1500)+Number.EPSILON)*100)/100:0}
 function hourlyAt(dateOrMonth){return hourlyFromSalary(salaryAt(dateOrMonth))}
 function addSalaryHistory(from,salary){
+ createSafetyBackup('Antes de alteração salarial');
  if(!/^\d{4}-\d{2}-\d{2}$/.test(String(from||'')))throw new Error('Data inválida.');
  const value=num(salary); if(value<=0)throw new Error('Salário inválido.');
  let hist=salaryHistoryNormalized().filter(x=>x.from!==from); hist.push({from,salary:value}); hist.sort((a,b)=>a.from.localeCompare(b.from));
@@ -1085,6 +1114,8 @@ function renderSettings(){
  if($('salaryHistoryTable')){let x='<tr><th>Válido a partir de</th><th>Salário base</th><th>Valor/hora calculado</th></tr>';for(const row of salaryHistoryNormalized())x+=`<tr><td>${row.from}</td><td>${euro(row.salary)}</td><td>${euro(hourlyFromSalary(row.salary))}</td></tr>`;$('salaryHistoryTable').innerHTML=x}
  if($('salaryHistoryFrom')&&!$('salaryHistoryFrom').value)$('salaryHistoryFrom').value=today();
  if($('salaryHistoryValue')&&!$('salaryHistoryValue').value)$('salaryHistoryValue').value=currentSalary;
+ if($('safetyBackupInfo'))$('safetyBackupInfo').textContent=`Backups automáticos guardados neste dispositivo: ${safetyBackupCount()} de 5.`;
+
 }
 
 async function processSharedBackupOnLaunch(){
@@ -1198,6 +1229,13 @@ $('settingsForm').onsubmit=e=>{
  save();
  message('Definições guardadas.','ok');
 };
+
+if($('safetyBackupNowBtn'))$('safetyBackupNowBtn').onclick=()=>{
+ const b=createSafetyBackup('Backup manual de segurança');
+ renderSettings();
+ message(b?'Backup de segurança criado.':'Não foi possível criar o backup de segurança.','ok');
+};
+
 if($('salaryHistoryAddBtn'))$('salaryHistoryAddBtn').onclick=()=>{
  try{const from=$('salaryHistoryFrom').value,salary=num($('salaryHistoryValue').value);addSalaryHistory(from,salary);render();message(`Alteração salarial guardada a partir de ${from}. Os meses anteriores mantêm os valores anteriores.`,'ok')}catch(err){message(err.message||'Não foi possível guardar a alteração salarial.','err')}
 };
