@@ -1130,6 +1130,99 @@ function renderReceipts(){
  renderReceiptsTableOnly();
  refreshStoredReceiptNets3116();
 }
+
+function checkDataIntegrity(){
+ const issues=[];
+ const stats={
+  sheets:Array.isArray(db.sheets)?db.sheets.length:0,
+  receipts:Array.isArray(db.receipts)?db.receipts.length:0,
+  clients:new Set(),
+  expenses:Array.isArray(db.expenses)?db.expenses.length:0,
+  used:Array.isArray(db.used)?db.used.length:0,
+  payments:Array.isArray(db.payments)?db.payments.length:0,
+  closedMonths:Array.isArray(db.closedMonths)?db.closedMonths.length:0
+ };
+
+ // Folhas
+ for(const s of (db.sheets||[])){
+  const client=s?.cliente||s?.client||'';
+  const local=s?.local||'';
+  if(client||local)stats.clients.add(`${client}|${local}`);
+
+  if(!s?.id)issues.push('Existe uma folha sem ID.');
+  if(!s?.dataInicial && !(Array.isArray(s?.entries)&&s.entries.some(e=>e?.date))){
+   issues.push(`Folha "${s?.name||'sem nome'}" sem data identificável.`);
+  }
+  if(s?.dataInicial && s?.dataFinal && s.dataInicial>s.dataFinal){
+   issues.push(`Folha "${s?.name||'sem nome'}" com data inicial posterior à data final.`);
+  }
+  if(!Number.isFinite(num(s?.normal))||!Number.isFinite(num(s?.h25))||!Number.isFinite(num(s?.h125))||
+     !Number.isFinite(num(s?.h1375))||!Number.isFinite(num(s?.h150))||!Number.isFinite(num(s?.h165))){
+   issues.push(`Folha "${s?.name||'sem nome'}" com valores de horas inválidos.`);
+  }
+ }
+
+ // Duplicados reais
+ for(let i=0;i<(db.sheets||[]).length;i++){
+  for(let j=i+1;j<(db.sheets||[]).length;j++){
+   if(isDuplicateSheet(db.sheets[i],db.sheets[j])){
+    const a=sheetIdentity(db.sheets[i]);
+    issues.push(`Possível folha duplicada: ${(db.sheets[i].cliente||db.sheets[i].client||'Cliente')} · ${a.first||'?'}${a.last&&a.last!==a.first?` a ${a.last}`:''}.`);
+   }
+  }
+ }
+
+ // Recibos
+ for(const r of (db.receipts||[])){
+  if(!r?.month)issues.push(`Recibo "${r?.name||'sem nome'}" sem mês associado.`);
+  if(r?.parsed && r.parsed.net!=null && (num(r.parsed.net)<0 || num(r.parsed.net)>10000)){
+   issues.push(`Recibo "${r?.name||'sem nome'}" com líquido fora do intervalo esperado.`);
+  }
+  if(!r?.fileKey)issues.push(`Recibo "${r?.name||'sem nome'}" sem referência ao ficheiro original.`);
+ }
+
+ // Despesas
+ for(const e of (db.expenses||[])){
+  if(!e?.date)issues.push('Existe uma despesa sem data.');
+  if(num(e?.food)<0 || num(e?.sleep)<0)issues.push(`Despesa com valor negativo em ${e?.date||'data desconhecida'}.`);
+ }
+
+ // Férias/compensações
+ for(const u of (db.used||[])){
+  if(!u?.start && !u?.date)issues.push('Existe um registo de férias/compensação sem data.');
+  if(num(u?.days)<0)issues.push('Existe um registo de férias/compensação com dias negativos.');
+ }
+
+ // Histórico salarial
+ const hist=salaryHistoryNormalized();
+ if(!hist.length)issues.push('Histórico salarial vazio.');
+ for(let i=1;i<hist.length;i++){
+  if(hist[i].from<=hist[i-1].from)issues.push('Histórico salarial com datas repetidas ou fora de ordem.');
+ }
+
+ return{
+  ok:issues.length===0,
+  issues,
+  stats:{...stats,clients:stats.clients.size},
+  checkedAt:new Date().toISOString()
+ };
+}
+function renderIntegrityResult(result){
+ if(!$('integrityResult'))return;
+ const s=result.stats;
+ let html=`<div class="${result.ok?'openBadge':'closedBadge'}">${result.ok?'✅ Dados sem inconsistências detetadas':'⚠️ Foram encontradas situações a verificar'}</div>`;
+ html+=`<p class="note">Folhas: <strong>${s.sheets}</strong> · Recibos: <strong>${s.receipts}</strong> · Clientes/locais: <strong>${s.clients}</strong> · Despesas: <strong>${s.expenses}</strong> · Férias/comp.: <strong>${s.used}</strong></p>`;
+ if(result.issues.length){
+  html+='<ul>';
+  for(const issue of result.issues.slice(0,50))html+=`<li>${issue}</li>`;
+  html+='</ul>';
+  if(result.issues.length>50)html+=`<p class="note">Existem mais ${result.issues.length-50} situações não mostradas.</p>`;
+ }else{
+  html+='<p class="note">A verificação é apenas de consistência interna e não altera nenhum dado.</p>';
+ }
+ $('integrityResult').innerHTML=html;
+}
+
 function renderSettings(){
  for(const el of $('settingsForm').elements)if(el.name)el.value=db.settings[el.name]??'';
  const nome=String(db.settings.nomeUtilizador||'').trim(),h=$('headerUserName'); if(h)h.textContent=nome?`👤 ${nome}`:'';
@@ -1252,6 +1345,14 @@ $('settingsForm').onsubmit=e=>{
  db.sheets.forEach(s=>s.compConta=s.dataFinal>db.settings.dataCorte?s.compGerada:0);
  save();
  message('Definições guardadas.','ok');
+};
+
+
+if($('integrityCheckBtn'))$('integrityCheckBtn').onclick=()=>{
+ const result=checkDataIntegrity();
+ renderIntegrityResult(result);
+ if(result.ok)message('Verificação concluída: não foram detetadas inconsistências.','ok');
+ else message(`Verificação concluída: ${result.issues.length} situação(ões) a verificar.`,'err');
 };
 
 if($('safetyBackupNowBtn'))$('safetyBackupNowBtn').onclick=()=>{

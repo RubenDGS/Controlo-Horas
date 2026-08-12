@@ -508,3 +508,16 @@ VERSÃO 3.12.4 — MELHORIA 3/5: AVISO DE DUPLICADO MAIS INTELIGENTE
 - Quando existe duplicado, o aviso passa a indicar o cliente/local e o período já existente.
 - Não altera nem apaga folhas já guardadas.
 - Não altera cálculos, recibos, salários, subsídio de refeição, despesas, backups ou restantes funcionalidades.
+
+VERSÃO 3.12.5 — MELHORIA 4/5: VERIFICAÇÃO DE INTEGRIDADE
+- Base integral: v3.12.4 validada.
+- Adicionada verificação manual de consistência dos dados.
+- Verifica:
+  * folhas sem datas/IDs e possíveis duplicados reais;
+  * recibos sem mês, sem ficheiro original ou com líquido fora do esperado;
+  * despesas inválidas;
+  * férias/compensações sem data ou com dias negativos;
+  * histórico salarial.
+- Mostra contagens de folhas, recibos, clientes/locais, despesas e férias/compensações.
+- A verificação é apenas de leitura: não altera, corrige nem apaga dados.
+- Mantém a mesma chave de armazenamento: controloHorasV6.
