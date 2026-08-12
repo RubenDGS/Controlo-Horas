@@ -404,3 +404,16 @@ VERSÃO 3.11.4 — LEITURA POSICIONAL DOS RECIBOS
 - Subsídio de férias real: deve ler 1167,00 €.
 - Todos os recibos antigos são relidos automaticamente com a versão 3114.
 - Não altera qualquer outra área da aplicação.
+
+VERSÃO 3.11.5 — TOTAL A RECEBER = 3.ª COLUNA
+- Base integral: v3.11.4.
+- Alteração exclusivamente no leitor do valor líquido dos recibos.
+- Regra definitiva: na linha dos três totais, ordenar da esquerda para a direita e usar o 3.º valor.
+  1.º = Total Sujeito
+  2.º = Total de Descontos
+  3.º = Total a Receber
+- Exemplo Julho.PDF: 1694,63 | 364,41 | 1330,22 -> lê 1330,22 €.
+- Aplica a mesma regra de 3.ª coluna quando os três totais estão numa única página.
+- Força releitura dos recibos já guardados.
+- Não altera folhas, cálculos de horas, clientes, ajudas, despesas, férias, compensações,
+  subsídios, backup/restauro, definições ou qualquer outra funcionalidade.

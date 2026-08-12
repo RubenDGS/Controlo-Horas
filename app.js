@@ -678,7 +678,7 @@ function parseReceiptText(text){
   if(vals.length) net=vals.at(-1);
  }
 
- return {month,base,extraHours,extraValue,ss,irs,subject,discounts,net,text:clean,parserVersion:3114};
+ return {month,base,extraHours,extraValue,ss,irs,subject,discounts,net,text:clean,parserVersion:3115};
 }
 async function extractReceipt(file){
  $('receiptProgress').textContent='A ler o recibo automaticamente…';
@@ -731,19 +731,57 @@ async function extractReceipt(file){
    // na zona superior. O "Total a Receber" é o montante mais à direita.
    const top=candidates.filter(c=>c.y < H*0.45);
    const pool=top.length?top:candidates;
-   pool.sort((a,b)=>b.x-a.x);
-   return pool[0]?.v??null;
+
+   // REGRA DEFINITIVA DOS RECIBOS REAIS:
+   // na página dos totais existem 3 colunas:
+   // 1. Total Sujeito | 2. Total de Descontos | 3. Total a Receber.
+   // Agrupar por linha e escolher explicitamente o 3.º montante da esquerda para a direita.
+   const rows=[];
+   for(const c of pool){
+    let row=rows.find(r=>Math.abs(r.y-c.y)<=24);
+    if(!row){ row={y:c.y,vals:[]}; rows.push(row); }
+    row.vals.push(c);
+   }
+   const threeColRows=rows
+     .filter(r=>r.vals.length>=3)
+     .map(r=>({y:r.y,vals:[...r.vals].sort((a,b)=>a.x-b.x)}));
+
+   if(threeColRows.length){
+    // Preferir a linha mais próxima do topo da página 2.
+    threeColRows.sort((a,b)=>a.y-b.y);
+    return threeColRows[0].vals[2]?.v??null;
+   }
+
+   // Fallback: se o OCR fragmentar a linha, usar o 3.º montante da esquerda
+   // entre os candidatos da zona superior, nunca o primeiro.
+   const ordered=[...pool].sort((a,b)=>a.x-b.x);
+   if(ordered.length>=3) return ordered[2].v;
+
+   return null;
   }
 
   if(totalPages===1){
    // Nos recibos de 1 página, o Total a Receber está na zona inferior direita.
+   const lower=candidates.filter(c=>c.y>H*0.45);
+   const rows=[];
+   for(const c of lower){
+    let row=rows.find(r=>Math.abs(r.y-c.y)<=24);
+    if(!row){ row={y:c.y,vals:[]}; rows.push(row); }
+    row.vals.push(c);
+   }
+   const threeColRows=rows
+     .filter(r=>r.vals.length>=3)
+     .map(r=>({y:r.y,vals:[...r.vals].sort((a,b)=>a.x-b.x)}))
+     .sort((a,b)=>b.y-a.y);
+
+   if(threeColRows.length) return threeColRows[0].vals[2]?.v??null;
+
    const bottomRight=candidates.filter(c=>c.y>H*0.55 && c.x>W*0.45);
    if(bottomRight.length){
     bottomRight.sort((a,b)=>(b.x-a.x)||(b.y-a.y));
     return bottomRight[0].v;
    }
-   const right=[...candidates].sort((a,b)=>b.x-a.x);
-   return right[0]?.v??null;
+   return null;
   }
 
   return null;
@@ -805,7 +843,7 @@ async function extractReceipt(file){
  $('receiptProgress').textContent='';
  const parsed=parseReceiptText(text);
  if(netHint!=null)parsed.net=netHint;
- parsed.parserVersion=3114;
+ parsed.parserVersion=3115;
  return parsed;
 }
 function refreshReceiptParsed(receipt){
@@ -861,9 +899,9 @@ function repairStoredReceiptNet(){return false;}
 let receiptNetRefreshRunning=false;
 let receiptNetRefreshDone=false;
 
-async function refreshStoredReceiptNets3114(){
+async function refreshStoredReceiptNets3115(){
  if(receiptNetRefreshRunning||receiptNetRefreshDone)return;
- const todo=db.receipts.filter(r=>r?.parsed?.parserVersion!==3114 && r.fileKey);
+ const todo=db.receipts.filter(r=>r?.parsed?.parserVersion!==3115 && r.fileKey);
  if(!todo.length){receiptNetRefreshDone=true;return}
 
  receiptNetRefreshRunning=true;
@@ -932,7 +970,7 @@ function receiptMonthSummary(month){
 }
 function renderReceipts(){
  renderReceiptsTableOnly();
- refreshStoredReceiptNets3114();
+ refreshStoredReceiptNets3115();
 }
 function renderSettings(){
  for(const el of $('settingsForm').elements)if(el.name)el.value=db.settings[el.name]??'';
