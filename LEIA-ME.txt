@@ -459,3 +459,14 @@ VERSÃO 3.11.9 — SUBSÍDIO DE REFEIÇÃO REVISTO
 - Férias e compensações continuam a receber subsídio de refeição.
 - Se o valor diário guardado estiver inválido/0, é reposto para 10,46 €.
 - Não apaga nem altera folhas, recibos, clientes, despesas, férias/compensações, backups ou restantes dados.
+
+VERSÃO 3.12.0 — HISTÓRICO SALARIAL + DUPLICADOS POR DATA
+- Base integral: v3.11.9.
+- Mantém as correções de recibos, IRS e subsídio de refeição.
+- O salário fica histórico por data de entrada em vigor.
+- 1.500 € ficam associados a 01/01/2026.
+- Um novo salário, por exemplo 1.600 €, só afeta meses a partir da data indicada.
+- O valor/hora deixa de ser editável e é calculado automaticamente mantendo a relação 1.500 € -> 8,65 €/h.
+- O mesmo cliente/local pode voltar a aparecer em datas diferentes sem ser considerado duplicado.
+- Folhas iguais no mesmo período continuam a ser detetadas para substituição.
+- Não apaga nem altera folhas, recibos ou outros dados existentes.

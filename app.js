@@ -34,7 +34,7 @@ async function openStoredSheet(key,name){
 }
 
 const $=id=>document.getElementById(id);
-const defaults={settings:{salarioBase:1500,taxaSS:11,valorHora:8.65,nomeUtilizador:'',estadoCivil:'solteiro',dependentes:0,ajudaDia:90,alojDia:65,refeicaoDia:10.46,inicioDespesas:'2027-01-01',saldoInicial:41,dataCorte:'2026-07-25',diasFeriasAnuais:22,primeiroAnoFerias:2027,m25:.25,m125:1.25,m1375:1.375,m150:1.5,m165:1.65},sheets:[],used:[],payments:[],expenses:[],receipts:[],closedMonths:[]};
+const defaults={settings:{salarioBase:1500,taxaSS:11,valorHora:8.65,salaryHistory:[{from:'2026-01-01',salary:1500}],nomeUtilizador:'',estadoCivil:'solteiro',dependentes:0,ajudaDia:90,alojDia:65,refeicaoDia:10.46,inicioDespesas:'2027-01-01',saldoInicial:41,dataCorte:'2026-07-25',diasFeriasAnuais:22,primeiroAnoFerias:2027,m25:.25,m125:1.25,m1375:1.375,m150:1.5,m165:1.65},sheets:[],used:[],payments:[],expenses:[],receipts:[],closedMonths:[]};
 let db=load(),locations=[],pendingImports=[];
 (function repairSalarySettings(){
  let changed=false;
@@ -193,18 +193,44 @@ function parseTimesheet(file,buffer,hash){
   _file:file
  };
 }
-function overtimeValue(g){
- const valorHora=num(db.settings.valorHora);
- // 100% não entra aqui. Fatores fixos:
- // 25% = 0,25; 125% = 1,25; 137,5% = 1,375; 150% = 1,5; 165% = 1,65.
- return valorHora*(
-  num(g.h25)*0.25+
-  num(g.h125)*1.25+
-  num(g.h1375)*1.375+
-  num(g.h150)*1.5+
-  num(g.h165)*1.65
- );
+function overtimeValue(g,month=''){
+ const valorHora=month?hourlyAt(month):hourlyFromSalary(num(db.settings.salarioBase)||1500);
+ return valorHora*(num(g.h25)*0.25+num(g.h125)*1.25+num(g.h1375)*1.375+num(g.h150)*1.5+num(g.h165)*1.65);
 }
+function salaryHistoryNormalized(){
+ let hist=Array.isArray(db.settings.salaryHistory)?db.settings.salaryHistory:[];
+ hist=hist.map(x=>({from:String(x?.from||''),salary:num(x?.salary)})).filter(x=>/^\d{4}-\d{2}-\d{2}$/.test(x.from)&&x.salary>0).sort((a,b)=>a.from.localeCompare(b.from));
+ if(!hist.length)hist=[{from:'2026-01-01',salary:num(db.settings.salarioBase)||1500}];
+ return hist;
+}
+function salaryAt(dateOrMonth){
+ const d=String(dateOrMonth||''),ref=/^\d{4}-\d{2}$/.test(d)?`${d}-01`:d;
+ const hist=salaryHistoryNormalized(); let chosen=hist[0];
+ for(const h of hist){if(h.from<=ref)chosen=h;else break}
+ return chosen?.salary||1500;
+}
+function hourlyFromSalary(salary){const s=num(salary);return s>0?round2(s*(8.65/1500)):0}
+function hourlyAt(dateOrMonth){return hourlyFromSalary(salaryAt(dateOrMonth))}
+function addSalaryHistory(from,salary){
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(String(from||'')))throw new Error('Data inválida.');
+ const value=num(salary); if(value<=0)throw new Error('Salário inválido.');
+ let hist=salaryHistoryNormalized().filter(x=>x.from!==from); hist.push({from,salary:value}); hist.sort((a,b)=>a.from.localeCompare(b.from));
+ db.settings.salaryHistory=hist; db.settings.salarioBase=salaryAt(today()); db.settings.valorHora=hourlyAt(today()); save();
+}
+function sheetIdentity(s){
+ const entries=Array.isArray(s?.entries)?s.entries.filter(e=>e?.date):[];
+ const dates=entries.map(e=>e.date).sort(),first=dates[0]||s?.dataInicial||'',last=dates.at(-1)||s?.dataFinal||first||'';
+ return{dates,first,last,client:norm(String(s?.client||s?.cliente||'')),local:norm(String(s?.local||''))};
+}
+function isDuplicateSheet(a,b){
+ const A=sheetIdentity(a),B=sheetIdentity(b);
+ if(A.first&&B.first&&A.last&&B.last&&(A.first!==B.first||A.last!==B.last))return false;
+ if(A.dates.length&&B.dates.length&&A.dates.join('|')!==B.dates.join('|'))return false;
+ if(A.client&&B.client&&A.client!==B.client)return false;
+ if(A.local&&B.local&&A.local!==B.local)return false;
+ return Boolean(A.first||A.dates.length);
+}
+
 function irs2026(R){
  R=Math.max(0,num(R));
  const dep=Math.max(0,Math.floor(num(db.settings.dependentes)));
@@ -277,32 +303,16 @@ function previousMonth(m){
  const d=new Date(y,mo-2,1);
  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
 }
-function subsidyNet(m){
- // Subsídios pagos separadamente: férias em julho e Natal em dezembro.
- // Para salário base de 1.500 €: 11% SS + 11,2% IRS = 1.167 € líquidos.
- const mo=String(m||'').slice(5,7);
- if(mo!=='07'&&mo!=='12')return 0;
- const base=num(db.settings.salarioBase);
- if(Math.abs(base-1500)<0.01)return 1167;
- // Se o salário base for alterado, manter a mesma incidência percentual
- // até existir uma tabela específica configurada para o subsídio.
+function subsidyNet(m,baseSalary=salaryAt(m)){
+ const mo=String(m||'').slice(5,7); if(mo!=='07'&&mo!=='12')return 0;
+ const base=num(baseSalary); if(Math.abs(base-1500)<0.01)return 1167;
  return Math.max(0,base-(base*num(db.settings.taxaSS)/100)-(base*11.2/100));
 }
 function salaryMonth(m){
- const g=monthGroup(m);
- const extras=monthGroup(previousMonth(m));
- const grossHours=overtimeValue(extras);
- const gross=db.settings.salarioBase+grossHours,
- ss=gross*db.settings.taxaSS/100,
- irsBase=irs2026(db.settings.salarioBase),
- irsBaseRounded=Math.floor(irsBase.value),
- irsHoursRaw=grossHours*(irsBase.effective/2),
- irsHours=Math.floor(irsHoursRaw),
- regularNet=gross-ss-irsBaseRounded-irsHours;
- const correction=db.payments.find(x=>x.month===m);
- const baseNet=correction?.net??regularNet;
- const subsidy=subsidyNet(m);
- return{...g,grossHours,gross,ss,irs:irsBaseRounded+irsHours,regularNet:baseNet,subsidy,net:baseNet+subsidy};
+ const g=monthGroup(m),extras=monthGroup(previousMonth(m)),baseSalary=salaryAt(m),grossHours=overtimeValue(extras,previousMonth(m));
+ const gross=baseSalary+grossHours,ss=gross*db.settings.taxaSS/100,irsBase=irs2026(baseSalary),irsBaseRounded=Math.floor(irsBase.value),irsHoursRaw=grossHours*(irsBase.effective/2),irsHours=Math.floor(irsHoursRaw),regularNet=gross-ss-irsBaseRounded-irsHours;
+ const correction=db.payments.find(x=>x.month===m),baseNet=correction?.net??regularNet,subsidy=subsidyNet(m,baseSalary);
+ return{...g,baseSalary,grossHours,gross,ss,irs:irsBaseRounded+irsHours,regularNet:baseNet,subsidy,net:baseNet+subsidy};
 }
 function easterDate(y){const a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),month=Math.floor((h+l-7*m+114)/31),day=((h+l-7*m+114)%31)+1;return new Date(y,month-1,day)}
 function isoLocal(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
@@ -1069,9 +1079,12 @@ function renderReceipts(){
 }
 function renderSettings(){
  for(const el of $('settingsForm').elements)if(el.name)el.value=db.settings[el.name]??'';
- const nome=String(db.settings.nomeUtilizador||'').trim();
- const h=$('headerUserName');
- if(h)h.textContent=nome?`👤 ${nome}`:'';
+ const nome=String(db.settings.nomeUtilizador||'').trim(),h=$('headerUserName'); if(h)h.textContent=nome?`👤 ${nome}`:'';
+ const currentSalary=salaryAt(today()),currentHourly=hourlyAt(today());
+ if($('hourlyCalculatedInfo'))$('hourlyCalculatedInfo').innerHTML=`Valor/hora calculado automaticamente: <strong>${euro(currentHourly)}</strong> · Salário atual: <strong>${euro(currentSalary)}</strong>`;
+ if($('salaryHistoryTable')){let x='<tr><th>Válido a partir de</th><th>Salário base</th><th>Valor/hora calculado</th></tr>';for(const row of salaryHistoryNormalized())x+=`<tr><td>${row.from}</td><td>${euro(row.salary)}</td><td>${euro(hourlyFromSalary(row.salary))}</td></tr>`;$('salaryHistoryTable').innerHTML=x}
+ if($('salaryHistoryFrom')&&!$('salaryHistoryFrom').value)$('salaryHistoryFrom').value=today();
+ if($('salaryHistoryValue')&&!$('salaryHistoryValue').value)$('salaryHistoryValue').value=currentSalary;
 }
 
 async function processSharedBackupOnLaunch(){
@@ -1137,7 +1150,7 @@ $('fileInput').onchange=async e=>{
    const buffer=await f.arrayBuffer(),hash=await hashBuffer(buffer);
    const item=parseTimesheet(f,buffer,hash);
    if(isClosed(monthOf(item.dataFinal)))throw new Error('o mês está fechado');
-   const existing=db.sheets.find(s=>s.name.toLowerCase()===f.name.toLowerCase()||s.hash===hash);
+   const existing=db.sheets.find(s=>s.hash===hash||isDuplicateSheet(item,s));
    item.replaceId=existing?.id||null;
    pendingImports.push(item);
   }catch(err){message(`${f.name}: ${err.message}`,'err')}
@@ -1184,6 +1197,9 @@ $('settingsForm').onsubmit=e=>{
  db.sheets.forEach(s=>s.compConta=s.dataFinal>db.settings.dataCorte?s.compGerada:0);
  save();
  message('Definições guardadas.','ok');
+};
+if($('salaryHistoryAddBtn'))$('salaryHistoryAddBtn').onclick=()=>{
+ try{const from=$('salaryHistoryFrom').value,salary=num($('salaryHistoryValue').value);addSalaryHistory(from,salary);render();message(`Alteração salarial guardada a partir de ${from}. Os meses anteriores mantêm os valores anteriores.`,'ok')}catch(err){message(err.message||'Não foi possível guardar a alteração salarial.','err')}
 };
 async function buildBackupZip(){
  const now=new Date();

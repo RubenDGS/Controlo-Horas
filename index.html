@@ -10,7 +10,7 @@
   <link rel="apple-touch-icon" href="icon-192.png">
   <link rel="stylesheet" href="styles.css">
 </head>
-<body><div id="appVersion" style="position:fixed;right:6px;bottom:6px;z-index:9999;font-size:11px;background:#fff;border:1px solid #ccc;border-radius:6px;padding:3px 6px;opacity:.85">v3.11.9</div>
+<body><div id="appVersion" style="position:fixed;right:6px;bottom:6px;z-index:9999;font-size:11px;background:#fff;border:1px solid #ccc;border-radius:6px;padding:3px 6px;opacity:.85">v3.12.0</div>
 <header class="appHeader">
   <div class="brand">
     <img class="brandLogo" src="logotipo.png" alt="Logótipo">
@@ -167,7 +167,9 @@
 <section id="definicoes" class="panel">
   <form id="settingsForm" class="formGrid settings">
     <label>Nome do utilizador<input name="nomeUtilizador" type="text" placeholder="Nome e apelido"></label>
-    <label>Salário base bruto (€)<input name="salarioBase" type="number" step="0.01"></label>
+    <label>Salário base atual (€)<input name="salarioBase" type="number" step="0.01" readonly></label>
+    <div class="note" id="hourlyCalculatedInfo">Valor/hora calculado automaticamente.</div>
+    <div class="settingsBox"><h3>Histórico salarial</h3><p class="note">As alterações só se aplicam a partir da data indicada. Os meses anteriores mantêm o salário anterior.</p><div class="formGrid"><label>Novo salário base (€)<input id="salaryHistoryValue" type="number" min="0" step="0.01"></label><label>Válido a partir de<input id="salaryHistoryFrom" type="date"></label><button type="button" id="salaryHistoryAddBtn">Guardar alteração salarial</button></div><div class="tableWrap"><table id="salaryHistoryTable"></table></div></div>
     <label>Segurança Social (%)<input name="taxaSS" type="number" step="0.01"></label>
     <label>Situação familiar
       <select name="estadoCivil">
@@ -177,7 +179,6 @@
       </select>
     </label>
     <label>N.º de dependentes<input name="dependentes" type="number" min="0" step="1"></label>
-    <label>Valor hora (€)<input name="valorHora" type="number" step="0.01"></label>
     <label>Ajuda de custo/dia (€)<input name="ajudaDia" type="number" step="0.01"></label>
     <label>Alojamento/dia (€)<input name="alojDia" type="number" step="0.01"></label>
     <label>Subsídio de refeição/dia (€)<input name="refeicaoDia" type="number" step="0.01"></label>
@@ -202,17 +203,17 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
-<script src="app.js?v=3.11.9"></script>
+<script src="app.js?v=3.12.0"></script>
 <script>
 (async()=>{
  if(!('serviceWorker' in navigator) || !location.protocol.startsWith('http')) return;
  try{
-  const reg=await navigator.serviceWorker.register('sw.js?v=3.11.9',{updateViaCache:'none'});
+  const reg=await navigator.serviceWorker.register('sw.js?v=3.12.0',{updateViaCache:'none'});
   await reg.update();
   if(reg.waiting) reg.waiting.postMessage({type:'SKIP_WAITING'});
   navigator.serviceWorker.addEventListener('controllerchange',()=>{
-   if(!sessionStorage.getItem('reloaded-v3119')){
-    sessionStorage.setItem('reloaded-v3119','1');
+   if(!sessionStorage.getItem('reloaded-v3120')){
+    sessionStorage.setItem('reloaded-v3120','1');
     location.reload();
    }
   });
