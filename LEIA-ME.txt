@@ -470,3 +470,13 @@ VERSÃO 3.12.0 — HISTÓRICO SALARIAL + DUPLICADOS POR DATA
 - O mesmo cliente/local pode voltar a aparecer em datas diferentes sem ser considerado duplicado.
 - Folhas iguais no mesmo período continuam a ser detetadas para substituição.
 - Não apaga nem altera folhas, recibos ou outros dados existentes.
+
+VERSÃO 3.12.1 — CORREÇÃO DE ARRANQUE
+- Base integral: v3.12.0.
+- Corrigido um erro de execução introduzido no cálculo automático do valor/hora.
+- A v3.12.0 chamava uma função inexistente (round2), o que interrompia a renderização
+  e fazia a aplicação parecer vazia.
+- A chave dos dados continua exatamente a mesma: controloHorasV6.
+- Não existe qualquer código de reset, limpeza ou eliminação de folhas/recibos/dados.
+- Mantém histórico salarial, valor/hora automático e deteção de duplicados por período.
+- Mantém todas as correções anteriores.

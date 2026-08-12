@@ -209,7 +209,7 @@ function salaryAt(dateOrMonth){
  for(const h of hist){if(h.from<=ref)chosen=h;else break}
  return chosen?.salary||1500;
 }
-function hourlyFromSalary(salary){const s=num(salary);return s>0?round2(s*(8.65/1500)):0}
+function hourlyFromSalary(salary){const s=num(salary);return s>0?Math.round((s*(8.65/1500)+Number.EPSILON)*100)/100:0}
 function hourlyAt(dateOrMonth){return hourlyFromSalary(salaryAt(dateOrMonth))}
 function addSalaryHistory(from,salary){
  if(!/^\d{4}-\d{2}-\d{2}$/.test(String(from||'')))throw new Error('Data inválida.');
