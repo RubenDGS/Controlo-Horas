@@ -435,7 +435,210 @@ function balance(){return num(db.settings.saldoInicial)+db.sheets.reduce((a,s)=>
 function expenseSummary(m){const ex=db.expenses.filter(x=>monthOf(x.date)===m),g=monthGroup(m),food=ex.reduce((a,x)=>a+num(x.food),0),sleep=ex.reduce((a,x)=>a+num(x.sleep),0);return{food,sleep,travel:g.travel,lodging:g.lodging,remain:g.travel+g.lodging-food-sleep}}
 function allMonths(){const set=new Set(db.sheets.flatMap(s=>(s.entries||[]).map(e=>monthOf(e.date))).concat(db.payments.map(x=>x.month),db.expenses.map(x=>monthOf(x.date)),db.receipts.map(x=>x.month)));set.add(currentMonth());return [...set].filter(Boolean).sort()}
 function monthStatus(m){const warnings=[];if(!sheetsForMonth(m).length)warnings.push('sem folhas');if(!db.receipts.some(r=>r.month===m))warnings.push('sem recibo');if(m>='2027-01'&&monthGroup(m).travel+monthGroup(m).lodging>0&&!db.expenses.some(x=>monthOf(x.date)===m))warnings.push('sem despesas');const r=db.receipts.find(x=>x.month===m),p=salaryMonth(m);if(r?.net&&Math.abs(num(r.net)-p.net)>5)warnings.push('diferença no recibo');return warnings}
-function renderDashboard(){const m=$('dashMonth').value||currentMonth(),p=salaryMonth(m),e=expenseSummary(m),extra=p.h25+p.h125+p.h1375+p.h150+p.h165,totalHours=p.normal+extra;const allExtra=db.sheets.reduce((a,s)=>a+num(s.h25)+num(s.h125)+num(s.h1375)+num(s.h150)+num(s.h165),0);$('dashNet').textContent=euro(num(p.net)>=300&&num(p.net)<=5000?num(p.net):0);$('dashH100').textContent=fmt(p.normal)+' h';$('dashH25').textContent=fmt(p.h25)+' h';$('dashH125').textContent=fmt(p.h125)+' h';$('dashH1375').textContent=fmt(p.h1375)+' h';$('dashH150').textContent=fmt(p.h150)+' h';$('dashH165').textContent=fmt(p.h165)+' h';$('dashExtra').textContent=fmt(extra)+' h';$('dashTotalHours').textContent=fmt(totalHours)+' h';$('dashExtraAll').textContent=fmt(allExtra)+' h';const mealCount=mealDays(m);$('dashMeal').textContent=`${euro(mealCount*db.settings.refeicaoDia)} (${mealCount} dias sem folha)`;$('dashTravel').textContent=euro(p.travel);$('dashLodging').textContent=euro(p.lodging);$('dashBalance').textContent=fmt(balance())+' dias';$('dashExpenseBalance').textContent=euro(e.remain);const w=monthStatus(m),closed=isClosed(m);$('monthStatus').className='statusBox '+(w.length?'status-warn':'status-ok');$('monthStatus').innerHTML=`<strong>${closed?'🔒 Mês fechado':'🟢 Mês aberto'}</strong>${w.length?' · Falta: '+w.join(', '):' · Registos completos'}`;renderMonthly();renderAnnual()}
+
+function yearExtraHours(year){
+ return db.sheets
+  .filter(s=>String(s.dataFinal||s.dataInicial||'').startsWith(String(year)))
+  .reduce((a,s)=>a+num(s.h25)+num(s.h125)+num(s.h1375)+num(s.h150)+num(s.h165),0);
+}
+
+function buildAnomalies(year=String(new Date().getFullYear())){
+ const alerts=[];
+ const months=allMonths().filter(m=>m.startsWith(year)).sort();
+
+ for(const m of months){
+  const sheets=sheetsForMonth(m);
+  const receipts=db.receipts.filter(r=>r.month===m);
+  const rec=receiptMonthSummary(m);
+
+  if(receipts.length && !sheets.length)alerts.push({m,text:'Tem recibo mas não existem folhas de horas.'});
+  if(sheets.length && !receipts.length)alerts.push({m,text:'Existem folhas mas ainda não há recibo.'});
+  if(rec.actual!=null && Math.abs(num(rec.diff))>5)alerts.push({m,text:`Diferença entre aplicação e recibo: ${rec.diff>0?'+':''}${euro(rec.diff)}.`});
+  if(['07','12'].includes(m.slice(5,7)) && receipts.length===1)alerts.push({m,text:'Mês de subsídio com apenas 1 recibo carregado.'});
+ }
+
+ for(let i=0;i<db.sheets.length;i++){
+  for(let j=i+1;j<db.sheets.length;j++){
+   if(isDuplicateSheet(db.sheets[i],db.sheets[j])){
+    const x=sheetIdentity(db.sheets[i]);
+    if(String(x.first||'').startsWith(year)){
+     alerts.push({m:monthOf(x.first),text:`Possível folha duplicada: ${db.sheets[i].cliente||'Cliente'} (${x.first}${x.last&&x.last!==x.first?' a '+x.last:''}).`});
+    }
+   }
+  }
+ }
+ return alerts;
+}
+
+function renderAnomalies(){
+ if(!$('anomalyPanel'))return;
+ const year=($('dashMonth')?.value||currentMonth()).slice(0,4);
+ const alerts=buildAnomalies(year);
+ if(!alerts.length){
+  $('anomalyPanel').className='statusBox status-ok';
+  $('anomalyPanel').innerHTML=`<strong>✅ Sem alertas relevantes em ${year}</strong>`;
+  return;
+ }
+ $('anomalyPanel').className='statusBox status-warn';
+ $('anomalyPanel').innerHTML=`<strong>⚠️ ${alerts.length} alerta(s) em ${year}</strong><ul>${alerts.slice(0,12).map(a=>`<li><strong>${a.m||year}</strong> · ${a.text}</li>`).join('')}</ul>${alerts.length>12?`<p class="note">+ ${alerts.length-12} alerta(s) adicionais.</p>`:''}`;
+}
+
+function drawBarChart(canvas,labels,values,valueFormatter){
+ if(!canvas)return;
+ const ctx=canvas.getContext('2d');
+ const W=900,H=260;
+ canvas.width=W;canvas.height=H;
+ ctx.clearRect(0,0,W,H);
+ const pad={l:58,r:18,t:18,b:42},cw=W-pad.l-pad.r,ch=H-pad.t-pad.b;
+ const max=Math.max(1,...values.map(v=>Math.abs(num(v))));
+ ctx.font='12px sans-serif';
+ ctx.fillStyle='#5f7780';
+ ctx.strokeStyle='#d5e4e8';
+ ctx.lineWidth=1;
+ for(let i=0;i<=4;i++){
+  const y=pad.t+ch-(ch*i/4);
+  ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(W-pad.r,y);ctx.stroke();
+  const val=max*i/4;
+  ctx.fillText(valueFormatter?valueFormatter(val):fmt(val),4,y+4);
+ }
+ const bw=cw/Math.max(1,labels.length);
+ values.forEach((v,i)=>{
+  const h=ch*(Math.max(0,num(v))/max);
+  const x=pad.l+i*bw+bw*.18,y=pad.t+ch-h,w=bw*.64;
+  ctx.fillStyle='#0b5e75';ctx.fillRect(x,y,w,h);
+  ctx.fillStyle='#5f7780';ctx.textAlign='center';
+  ctx.fillText(labels[i],x+w/2,H-18);
+ });
+ ctx.textAlign='left';
+}
+
+function renderAnnualCharts(){
+ if(!$('chartNet'))return;
+ const year=$('payYear')?.value||String(new Date().getFullYear());
+ const labels=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+ const net=[],extra=[],travel=[];
+ for(let mo=1;mo<=12;mo++){
+  const m=`${year}-${String(mo).padStart(2,'0')}`;
+  const p=salaryMonth(m);
+  net.push((num(p.net)>=300&&num(p.net)<=5000)?num(p.net):0);
+  extra.push(num(p.h25)+num(p.h125)+num(p.h1375)+num(p.h150)+num(p.h165));
+  travel.push(num(p.travel)+num(p.lodging));
+ }
+ drawBarChart($('chartNet'),labels,net,v=>`${Math.round(v)}€`);
+ drawBarChart($('chartExtra'),labels,extra,v=>`${Math.round(v)}h`);
+ drawBarChart($('chartTravel'),labels,travel,v=>`${Math.round(v)}€`);
+}
+
+function renderClientAnnualStats(){
+ if(!$('clientAnnualTable'))return;
+ const years=[...new Set(db.sheets.map(s=>String(s.dataFinal||s.dataInicial||'').slice(0,4)).filter(Boolean))].sort().reverse();
+ const current=String(new Date().getFullYear());
+ const selected=$('clientYear').value||years[0]||current;
+ $('clientYear').innerHTML=(years.length?years:[current]).map(y=>`<option ${y===selected?'selected':''}>${y}</option>`).join('');
+
+ const groups={};
+ for(const s of db.sheets){
+  const y=String(s.dataFinal||s.dataInicial||'').slice(0,4);
+  if(y!==selected)continue;
+  const key=`${s.cliente||'Sem cliente'}|||${s.local||'Sem local'}`;
+  groups[key]??={client:s.cliente||'Sem cliente',local:s.local||'Sem local',folhas:0,normal:0,extra:0};
+  const g=groups[key];g.folhas++;g.normal+=num(s.normal);
+  g.extra+=num(s.h25)+num(s.h125)+num(s.h1375)+num(s.h150)+num(s.h165);
+ }
+ const rows=Object.values(groups).sort((a,b)=>(b.normal+b.extra)-(a.normal+a.extra));
+ let h='<tr><th>Cliente</th><th>Local</th><th>Folhas</th><th>Horas 100%</th><th>Horas extra</th><th>Total</th></tr>';
+ if(!rows.length)h+=`<tr><td colspan="6">Sem folhas em ${selected}.</td></tr>`;
+ else rows.forEach(x=>h+=`<tr><td>${x.client}</td><td>${x.local}</td><td>${x.folhas}</td><td>${fmt(x.normal)} h</td><td>${fmt(x.extra)} h</td><td><strong>${fmt(x.normal+x.extra)} h</strong></td></tr>`);
+ $('clientAnnualTable').innerHTML=h;
+}
+
+function receiptKind(r){
+ const n=norm(r?.name||'');
+ if(n.includes('subsidio')&&n.includes('ferias'))return 'Subsídio de férias';
+ if(n.includes('subsidio')&&n.includes('natal'))return 'Subsídio de Natal';
+ return 'Recibo normal';
+}
+function renderReceiptArchive(){
+ if(!$('receiptArchiveTable'))return;
+ const years=[...new Set(db.receipts.map(r=>String(r.month||'').slice(0,4)).filter(Boolean))].sort().reverse();
+ const current=String(new Date().getFullYear());
+ const selected=$('receiptArchiveYear').value||years[0]||current;
+ $('receiptArchiveYear').innerHTML=(years.length?years:[current]).map(y=>`<option ${y===selected?'selected':''}>${y}</option>`).join('');
+ const monthNames=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+ let h='<tr><th>Mês</th><th>Recibos arquivados</th><th>Estado</th></tr>';
+ for(let i=1;i<=12;i++){
+  const m=`${selected}-${String(i).padStart(2,'0')}`;
+  const items=db.receipts.filter(r=>r.month===m);
+  const names=items.map(r=>`${receiptKind(r)} · ${r.name}`).join('<br>')||'—';
+  const expected=['07','12'].includes(String(i).padStart(2,'0'))?2:1;
+  const state=items.length>=expected?'✅ Completo':items.length?'⚠️ Incompleto':'—';
+  h+=`<tr><td>${monthNames[i-1]}</td><td>${names}</td><td>${state}</td></tr>`;
+ }
+ $('receiptArchiveTable').innerHTML=h;
+}
+
+function simulateSalary(){
+ const salary=num($('simSalary')?.value);
+ const m=$('simMonth')?.value||currentMonth();
+ if(salary<=0){$('simSalaryResult').innerHTML='Indica um salário válido.';return}
+ const vh=hourlyFromSalary(salary);
+ const extras=monthGroup(previousMonth(m));
+ const grossHours=vh*(num(extras.h25)*0.25+num(extras.h125)*1.25+num(extras.h1375)*1.375+num(extras.h150)*1.5+num(extras.h165)*1.65);
+ const gross=salary+grossHours;
+ const ss=gross*num(db.settings.taxaSS)/100;
+ const irsBase=irs2026(salary);
+ const irsBaseRounded=Math.floor(irsBase.value);
+ const irsHours=Math.floor(grossHours*(irsBase.effective/2));
+ const liquid=gross-ss-irsBaseRounded-irsHours;
+ $('simSalaryResult').innerHTML=`<strong>Simulação para ${m}</strong><ul><li>Salário base: <strong>${euro(salary)}</strong></li><li>Valor/hora: <strong>${euro(vh)}/h</strong></li><li>Horas extra estimadas: <strong>${euro(grossHours)}</strong></li><li>SS estimada: <strong>${euro(ss)}</strong></li><li>IRS estimado: <strong>${euro(irsBaseRounded+irsHours)}</strong></li><li>Líquido estimado: <strong>${euro(liquid)}</strong></li></ul><p class="note">É apenas uma simulação e não foi guardada.</p>`;
+}
+
+function safetyBackups(){
+ try{
+  const list=JSON.parse(localStorage.getItem(SAFETY_KEY)||'[]');
+  return Array.isArray(list)?list:[];
+ }catch{return []}
+}
+function renderSafetyBackups(){
+ if(!$('safetyBackupTable'))return;
+ const list=safetyBackups();
+ let h='<tr><th>Data</th><th>Motivo</th><th></th></tr>';
+ if(!list.length)h+='<tr><td colspan="3">Ainda não existem backups internos.</td></tr>';
+ list.forEach((b,i)=>{
+  const d=new Date(b.created);
+  const when=isNaN(d)?b.created:d.toLocaleString('pt-PT');
+  h+=`<tr><td>${when}</td><td>${b.reason||'Backup de segurança'}</td><td><button type="button" onclick="restoreSafetyBackup(${i})">Restaurar</button></td></tr>`;
+ });
+ $('safetyBackupTable').innerHTML=h;
+}
+window.restoreSafetyBackup=function(index){
+ const list=safetyBackups(),entry=list[index];
+ if(!entry?.data)return;
+ if(!confirm('Restaurar esta cópia de segurança? O estado atual será guardado antes da restauração.'))return;
+ createSafetyBackup('Antes de restaurar backup automático');
+ const incoming=entry.data;
+ db={
+  ...clone(defaults),...incoming,
+  settings:{...defaults.settings,...(incoming.settings||{})},
+  sheets:Array.isArray(incoming.sheets)?incoming.sheets:[],
+  used:Array.isArray(incoming.used)?incoming.used:[],
+  payments:Array.isArray(incoming.payments)?incoming.payments:[],
+  expenses:Array.isArray(incoming.expenses)?incoming.expenses:[],
+  receipts:Array.isArray(incoming.receipts)?incoming.receipts:[],
+  closedMonths:Array.isArray(incoming.closedMonths)?incoming.closedMonths:[]
+ };
+ save();
+ message('Backup automático restaurado.','ok');
+};
+
+function renderYearReady(){
+ if(!$('yearReadyInfo'))return;
+ const current=new Date().getFullYear();
+ const next=current+1;
+ $('yearReadyInfo').innerHTML=`A aplicação separa automaticamente os resumos por ano. O histórico salarial, férias/compensações e definições continuam acumulados. Ao entrar em <strong>${next}</strong>, os relatórios anuais começam um novo ano sem apagar ${current}. <strong>Nota:</strong> as tabelas de IRS devem ser atualizadas quando forem publicadas as regras oficiais de ${next}; até lá não alteramos os cálculos de ${current}.`;
+}
+
+function renderDashboard(){const m=$('dashMonth').value||currentMonth(),p=salaryMonth(m),e=expenseSummary(m),extra=p.h25+p.h125+p.h1375+p.h150+p.h165,totalHours=p.normal+extra;const allExtra=db.sheets.reduce((a,s)=>a+num(s.h25)+num(s.h125)+num(s.h1375)+num(s.h150)+num(s.h165),0);$('dashNet').textContent=euro(num(p.net)>=300&&num(p.net)<=5000?num(p.net):0);$('dashH100').textContent=fmt(p.normal)+' h';$('dashH25').textContent=fmt(p.h25)+' h';$('dashH125').textContent=fmt(p.h125)+' h';$('dashH1375').textContent=fmt(p.h1375)+' h';$('dashH150').textContent=fmt(p.h150)+' h';$('dashH165').textContent=fmt(p.h165)+' h';$('dashExtra').textContent=fmt(extra)+' h';$('dashTotalHours').textContent=fmt(totalHours)+' h';$('dashExtraAll').textContent=fmt(allExtra)+' h';if($('dashExtraYear'))$('dashExtraYear').textContent=fmt(yearExtraHours(m.slice(0,4)))+' h';const mealCount=mealDays(m);$('dashMeal').textContent=`${euro(mealCount*db.settings.refeicaoDia)} (${mealCount} dias sem folha)`;$('dashTravel').textContent=euro(p.travel);$('dashLodging').textContent=euro(p.lodging);$('dashBalance').textContent=fmt(balance())+' dias';$('dashExpenseBalance').textContent=euro(e.remain);const w=monthStatus(m),closed=isClosed(m);$('monthStatus').className='statusBox '+(w.length?'status-warn':'status-ok');$('monthStatus').innerHTML=`<strong>${closed?'✅ Mês validado':'🟢 Mês aberto'}</strong>${w.length?' · Falta: '+w.join(', '):' · Registos completos'}`;renderMonthly();renderAnnual();renderAnomalies()}
 function renderMonthly(){
  let h='<tr><th>Mês</th><th>Salário base usado</th><th>Valor/hora usado</th><th>Líquido recibo</th><th>Horas a 100%</th><th>25%</th><th>125%</th><th>137,5%</th><th>150%</th><th>165%</th><th>Total extra</th><th>Total geral</th><th>Subs. refeição</th><th>Ajudas</th><th>Alojamento</th><th>Estado</th></tr>';
  for(const m of allMonths().reverse()){
@@ -526,6 +729,7 @@ function renderPayments(){
  }
 
  $('paymentsTable').innerHTML=h;
+ renderAnnualCharts();
 }
 function latestSheetMonth(){
  const months=db.sheets.flatMap(s=>Array.isArray(s.entries)&&s.entries.length?s.entries.map(e=>monthOf(e.date)):[monthOf(s.dataFinal)]).filter(Boolean).sort();
@@ -873,6 +1077,7 @@ function renderClients(){
  }
 
  $('clientsTable').innerHTML=h;
+ renderClientAnnualStats();
 }
 function renderExpenses(){const m=$('expenseMonth').value||currentMonth(),s=expenseSummary(m);$('expenseTravelReceived').textContent=euro(s.travel);$('expenseFoodSpent').textContent=euro(s.food);$('expenseLodgingReceived').textContent=euro(s.lodging);$('expenseSleepSpent').textContent=euro(s.sleep);$('expenseRemain').textContent=euro(s.remain);let h='<tr><th>Data</th><th>Alimentação</th><th>Dormida</th><th>Observação</th><th></th></tr>';for(const x of db.expenses.filter(x=>monthOf(x.date)===m).sort((a,b)=>b.date.localeCompare(a.date))){h+=`<tr><td>${x.date}</td><td>${euro(x.food)}</td><td>${euro(x.sleep)}</td><td>${x.note||''}</td><td><button onclick="removeExpense('${x.id}')">Apagar</button></td></tr>`}$('expensesTable').innerHTML=h}
 function renderLeave(){const used=db.used.reduce((a,x)=>a+num(x.days),0);$('balanceCard').textContent=fmt(balance())+' dias';$('annualLeaveCard').textContent=fmt(annualLeaveAdded())+' dias';$('usedDaysCard').textContent=fmt(used)+' dias';let h='<tr><th>Tipo</th><th>Período</th><th>Dias</th><th>Descrição</th><th></th></tr>';for(const x of [...db.used].sort((a,b)=>b.date.localeCompare(a.date))){h+=`<tr><td>${x.type}</td><td>${x.date}${x.endDate&&x.endDate!==x.date?' a '+x.endDate:''}</td><td>${fmt(x.days)}</td><td>${x.desc||''}</td><td><button onclick="removeLeave('${x.id}')">Apagar</button></td></tr>`}$('leaveTable').innerHTML=h}
@@ -1276,6 +1481,7 @@ function renderReceiptsTableOnly(){
  }
  c+='</table>';
  $('receiptComparison').innerHTML=c;
+ renderReceiptArchive();
 }
 
 function receiptMonthSummary(month){
@@ -1395,6 +1601,11 @@ function renderSettings(){
  if($('salaryHistoryValue')&&!$('salaryHistoryValue').value)$('salaryHistoryValue').value=currentSalary;
  if($('safetyBackupInfo'))$('safetyBackupInfo').textContent=`Backups automáticos guardados neste dispositivo: ${safetyBackupCount()} de 5.`;
 
+ if($('simSalary')&&!$('simSalary').value)$('simSalary').value=currentSalary;
+ if($('simMonth')&&!$('simMonth').value)$('simMonth').value=currentMonth();
+ renderSafetyBackups();
+ renderYearReady();
+
 }
 
 async function processSharedBackupOnLaunch(){
@@ -1451,7 +1662,7 @@ async function processSharedBackupOnLaunch(){
 }
 
 function render(){renderDashboard();renderSheets();renderPayments();renderClients();renderExpenses();renderLeave();renderLocations();renderReceipts();renderSettings()}
-document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab,.panel').forEach(x=>x.classList.remove('active'));b.classList.add('active');$(b.dataset.tab).classList.add('active')});
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab,.panel').forEach(x=>x.classList.remove('active'));b.classList.add('active');$(b.dataset.tab).classList.add('active');if(b.dataset.tab==='recebimentos')setTimeout(renderAnnualCharts,0)});
 $('fileInput').onchange=async e=>{
  if(!window.XLSX){message('Não foi possível carregar o leitor de Excel. Confirma a ligação à Internet.','err');return}
  pendingImports=[];
@@ -1482,20 +1693,20 @@ function showImportPreview(){if(!pendingImports.length)return;const box=$('impor
  message('Folhas importadas/substituídas com os totais oficiais da linha 23.','ok')
 };$('cancelImport').onclick=()=>{pendingImports=[];box.classList.add('hidden')}}
 $('expenseForm').onsubmit=e=>{e.preventDefault();if($('expenseDate').value<db.settings.inicioDespesas){alert(`Só são aceites despesas a partir de ${db.settings.inicioDespesas}.`);return}if(isClosed(monthOf($('expenseDate').value))){alert('Este mês está fechado.');return}const existing=db.expenses.find(x=>x.date===$('expenseDate').value),obj={id:existing?.id||uid(),date:$('expenseDate').value,food:num($('expenseFood').value),sleep:num($('expenseSleep').value),note:$('expenseNote').value};existing?Object.assign(existing,obj):db.expenses.push(obj);save();$('expenseFood').value=0;$('expenseSleep').value=0;$('expenseNote').value=''}
-$('leaveForm').onsubmit=e=>{e.preventDefault();const obj={id:uid(),type:$('leaveType').value,date:$('leaveStart').value,endDate:$('leaveEnd').value,days:num($('leaveDays').value),desc:$('leaveNote').value};db.used.push(obj);save()}
+$('leaveForm').onsubmit=e=>{e.preventDefault();if(isClosed(monthOf($('leaveStart').value))){alert('Este mês está validado. Desbloqueia-o antes de alterar férias/compensações.');return}const obj={id:uid(),type:$('leaveType').value,date:$('leaveStart').value,endDate:$('leaveEnd').value,days:num($('leaveDays').value),desc:$('leaveNote').value};db.used.push(obj);save()}
 function workingDays(a,b){let n=0;if(!a||!b)return n;for(let d=new Date(a+'T12:00:00'),end=new Date(b+'T12:00:00');d<=end;d.setDate(d.getDate()+1))if(d.getDay()!==0&&d.getDay()!==6)n++;return n}
 $('leaveStart').onchange=()=>{if(!$('leaveEnd').value||$('leaveEnd').value<$('leaveStart').value)$('leaveEnd').value=$('leaveStart').value;$('leaveDays').value=workingDays($('leaveStart').value,$('leaveEnd').value)};$('leaveEnd').onchange=()=>$('leaveDays').value=workingDays($('leaveStart').value,$('leaveEnd').value);
 $('receiptForm').onsubmit=async e=>{
  e.preventDefault();const f=$('receiptFile').files[0];if(!f)return;
  try{
-  const parsed=await extractReceipt(f),month=parsed.month||$('receiptMonth').value;if(!month)throw new Error('Não foi possível identificar o mês.');parsed.month=month;
+  const parsed=await extractReceipt(f),month=parsed.month||$('receiptMonth').value;if(!month)throw new Error('Não foi possível identificar o mês.');if(isClosed(month))throw new Error('Este mês está validado. Desbloqueia-o antes de adicionar recibos.');parsed.month=month;
   const key='receipt-'+uid();await storeFile(key,f);
   const obj={id:uid(),month,name:f.name,type:f.type||f.name.split('.').pop(),fileKey:key,parsed};
   db.receipts.push(obj);save();$('receiptForm').reset();$('receiptProgress').textContent='Recibo lido e comparação atualizada automaticamente.';
  }catch(err){$('receiptProgress').textContent='Erro: '+err.message}
 }
 function fileToDataURL(f){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(f)})}
-window.openReceipt=async id=>{const r=db.receipts.find(x=>x.id===id);if(!r)return;if(r.fileKey){const blob=await getStoredFile(r.fileKey);if(blob)window.open(URL.createObjectURL(blob),'_blank')}else if(r.data)window.open(r.data,'_blank')};window.removeReceipt=async id=>{const r=db.receipts.find(x=>x.id===id);if(r?.fileKey)await deleteStoredFile(r.fileKey);db.receipts=db.receipts.filter(x=>x.id!==id);save()};window.removeSheet=async id=>{if(confirm('Apagar esta folha?')){const s=db.sheets.find(x=>x.id===id);if(s?.originalKey)await deleteStoredFile(s.originalKey);db.sheets=db.sheets.filter(x=>x.id!==id);save()}};window.removeExpense=id=>{db.expenses=db.expenses.filter(x=>x.id!==id);save()};window.removeLeave=id=>{db.used=db.used.filter(x=>x.id!==id);save()};
+window.openReceipt=async id=>{const r=db.receipts.find(x=>x.id===id);if(!r)return;if(r.fileKey){const blob=await getStoredFile(r.fileKey);if(blob)window.open(URL.createObjectURL(blob),'_blank')}else if(r.data)window.open(r.data,'_blank')};window.removeReceipt=async id=>{const r=db.receipts.find(x=>x.id===id);if(!r)return;if(isClosed(r.month)){alert('Este mês está validado. Desbloqueia-o antes de apagar recibos.');return}if(r?.fileKey)await deleteStoredFile(r.fileKey);db.receipts=db.receipts.filter(x=>x.id!==id);save()};window.removeSheet=async id=>{const s=db.sheets.find(x=>x.id===id);if(!s)return;if(isClosed(monthOf(s.dataFinal||s.dataInicial))){alert('Este mês está validado. Desbloqueia-o antes de apagar folhas.');return}if(confirm('Apagar esta folha?')){if(s?.originalKey)await deleteStoredFile(s.originalKey);db.sheets=db.sheets.filter(x=>x.id!==id);save()}};window.removeExpense=id=>{const x=db.expenses.find(e=>e.id===id);if(x&&isClosed(monthOf(x.date))){alert('Este mês está validado. Desbloqueia-o antes de apagar despesas.');return}db.expenses=db.expenses.filter(x=>x.id!==id);save()};window.removeLeave=id=>{const x=db.used.find(e=>e.id===id);if(x&&isClosed(monthOf(x.date))){alert('Este mês está validado. Desbloqueia-o antes de apagar férias/compensações.');return}db.used=db.used.filter(x=>x.id!==id);save()};
 $('settingsForm').onsubmit=e=>{
  e.preventDefault();
  for(const el of e.target.elements){
@@ -1509,6 +1720,11 @@ $('settingsForm').onsubmit=e=>{
  message('Definições guardadas.','ok');
 };
 
+
+
+if($('simSalaryBtn'))$('simSalaryBtn').onclick=simulateSalary;
+if($('clientYear'))$('clientYear').onchange=renderClientAnnualStats;
+if($('receiptArchiveYear'))$('receiptArchiveYear').onchange=renderReceiptArchive;
 
 if($('integrityCheckBtn'))$('integrityCheckBtn').onclick=()=>{
  const result=checkDataIntegrity();
@@ -1653,7 +1869,19 @@ $('restoreInput').onchange=async()=>{
   message('Backup inválido ou danificado. Nenhum dado foi alterado.','err');
  }finally{$('restoreInput').value=''}
 };
-$('closeMonthBtn').onclick=()=>{const m=$('dashMonth').value;if(!m)return;if(!db.closedMonths.includes(m))db.closedMonths.push(m);save()};$('reopenMonthBtn').onclick=()=>{db.closedMonths=db.closedMonths.filter(x=>x!==$('dashMonth').value);save()};$('printMonthBtn').onclick=()=>window.print();
+$('closeMonthBtn').onclick=()=>{
+ const m=$('dashMonth').value;if(!m)return;
+ if(db.closedMonths.includes(m)){message('Este mês já está validado.','ok');return}
+ if(!confirm(`Validar ${m}? Enquanto estiver validado, a aplicação bloqueia alterações nesse mês.`))return;
+ createSafetyBackup(`Antes de validar o mês ${m}`);
+ db.closedMonths.push(m);save();message(`Mês ${m} validado e protegido.`,'ok');
+};
+$('reopenMonthBtn').onclick=()=>{
+ const m=$('dashMonth').value;if(!m||!db.closedMonths.includes(m))return;
+ if(!confirm(`Desbloquear ${m} para permitir alterações?`))return;
+ createSafetyBackup(`Antes de desbloquear o mês ${m}`);
+ db.closedMonths=db.closedMonths.filter(x=>x!==m);save();message(`Mês ${m} desbloqueado.`,'ok');
+};$('printMonthBtn').onclick=()=>window.print();
 $('clearBtn').onclick=()=>{if(confirm('Apagar todos os dados?')){db=clone(defaults);save()}};
 ['dashMonth','clientMonth','expenseMonth'].forEach(id=>$(id).onchange=render);$('payYear').onchange=renderPayments;$('sheetSearch').oninput=renderSheets;$('clientFilter').oninput=renderClients;$('downloadClientsBtn').onclick=downloadClientsPdf;$('annualPdfBtn').onclick=downloadAnnualPdf;$('locationSearch').oninput=renderLocations;$('locationSource').onchange=renderLocations;
 $('globalSearch').oninput=()=>{const q=$('globalSearch').value;if(q.length<2)return;const loc=locations.find(x=>norm(x.name).includes(norm(q))),sheet=db.sheets.find(x=>norm(`${x.cliente} ${x.local} ${x.name}`).includes(norm(q)));if(loc){document.querySelector('[data-tab="locais"]').click();$('locationSearch').value=q;renderLocations()}else if(sheet){document.querySelector('[data-tab="folhas"]').click();$('sheetSearch').value=q;renderSheets()}};

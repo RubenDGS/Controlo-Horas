@@ -537,3 +537,42 @@ VERSÃO 3.12.6 — MELHORIA 5/5: RESUMO ANUAL EM PDF
   * saldo férias/compensações.
 - O PDF é apenas uma exportação. Não altera qualquer dado ou cálculo.
 - Mantém a mesma chave de armazenamento: controloHorasV6.
+
+VERSÃO 3.13.0 — PACOTE DE MELHORIAS
+Base integral: v3.12.6, mantida como versão de recuperação.
+
+MELHORIAS:
+1. Validação/proteção mensal
+   - “Validar mês” protege folhas, recibos, despesas e férias/compensações contra alterações acidentais.
+   - Pode ser desbloqueado manualmente.
+   - Cria backup de segurança antes de validar/desbloquear.
+
+2. Alertas automáticos
+   - Folhas sem recibo, recibo sem folhas, diferenças superiores a 5 €, meses de subsídio incompletos e possíveis duplicados.
+
+3. Evolução anual
+   - Gráficos de líquido mensal, horas extra e ajudas+alojamento.
+
+4. Estatísticas anuais por cliente
+   - Folhas, horas normais, horas extra e total por cliente/local.
+
+5. Simulador salarial
+   - Simula salário, valor/hora, horas extra, SS, IRS e líquido sem guardar alterações.
+
+6. Recuperação dos backups automáticos
+   - Lista as últimas 5 cópias internas e permite restaurar uma delas.
+   - Cria uma nova cópia do estado atual antes da restauração.
+
+7. Arquivo anual de recibos
+   - Organização por mês e tipo: recibo normal, subsídio de férias e subsídio de Natal.
+
+8. Preparação para os próximos anos
+   - Resumos anuais separados automaticamente.
+   - Histórico salarial e férias/compensações mantidos.
+   - Aviso para atualização futura das tabelas de IRS sem alterar anos anteriores.
+
+SEGURANÇA:
+- Chave principal de dados preservada: controloHorasV6.
+- Nenhuma migração destrutiva.
+- Nenhuma fórmula de cálculo existente foi alterada.
+- A v3.12.6 deve ser guardada como versão de recuperação.

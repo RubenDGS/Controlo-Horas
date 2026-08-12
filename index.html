@@ -10,7 +10,7 @@
   <link rel="apple-touch-icon" href="icon-192.png">
   <link rel="stylesheet" href="styles.css">
 </head>
-<body><div id="appVersion" style="position:fixed;right:6px;bottom:6px;z-index:9999;font-size:11px;background:#fff;border:1px solid #ccc;border-radius:6px;padding:3px 6px;opacity:.85">v3.12.6</div>
+<body><div id="appVersion" style="position:fixed;right:6px;bottom:6px;z-index:9999;font-size:11px;background:#fff;border:1px solid #ccc;border-radius:6px;padding:3px 6px;opacity:.85">v3.13.0</div>
 <header class="appHeader">
   <div class="brand">
     <img class="brandLogo" src="logotipo.png" alt="Logótipo">
@@ -59,6 +59,7 @@
     <article><span>Total extra do mês</span><strong id="dashExtra">0 h</strong></article>
     <article><span>Total geral do mês</span><strong id="dashTotalHours">0 h</strong></article>
     <article><span>Horas extra acumuladas</span><strong id="dashExtraAll">0 h</strong></article>
+    <article><span>Horas extra no ano</span><strong id="dashExtraYear">0 h</strong></article>
     <article><span>Subsídio de refeição</span><strong id="dashMeal">0,00 €</strong></article>
     <article><span>Ajudas de custo</span><strong id="dashTravel">0,00 €</strong></article>
     <article><span>Alojamento</span><strong id="dashLodging">0,00 €</strong></article>
@@ -67,13 +68,19 @@
   </div>
   <div class="toolbar">
     <label class="fileBtn">Importar folhas Excel<input id="fileInput" type="file" accept=".xlsx,.xlsm" multiple></label>
-    <button id="closeMonthBtn">🔒 Fechar mês</button>
-    <button id="reopenMonthBtn">🔓 Reabrir mês</button>
+    <button id="closeMonthBtn">✅ Validar mês</button>
+    <button id="reopenMonthBtn">🔓 Desbloquear mês</button>
     <button id="restoreBtn">♻️ Restaurar backup completo</button>
     <input id="restoreInput" type="file" accept=".zip,.json,application/zip,application/json" hidden>
   </div>
   <div id="messages"></div>
   <div id="importPreview" class="modal hidden"></div>
+  
+  <div class="settingsBox dashboardAlertBox">
+    <h2>🚨 Alertas automáticos</h2>
+    <div id="anomalyPanel" class="statusBox"></div>
+  </div>
+
   <h2>Resumo mensal</h2>
   <div class="tableWrap"><table id="monthlyTable"></table></div>
   <h2>Resumo anual</h2>
@@ -96,6 +103,14 @@
     <article><span id="yearSavedLabel">Total poupado nas despesas</span><strong id="yearSaved">0,00 €</strong></article>
   </div>
   <div class="tableWrap"><table id="paymentsTable"></table></div>
+
+  <h2>Evolução anual</h2>
+  <div class="chartGrid">
+    <article class="chartCard"><h3>Líquido mensal</h3><canvas id="chartNet" width="900" height="260"></canvas></article>
+    <article class="chartCard"><h3>Horas extra por mês</h3><canvas id="chartExtra" width="900" height="260"></canvas></article>
+    <article class="chartCard"><h3>Ajudas + alojamento</h3><canvas id="chartTravel" width="900" height="260"></canvas></article>
+  </div>
+
 </section>
 
 <section id="clientes" class="panel">
@@ -107,6 +122,11 @@
   </div>
   <p class="hint">Horas a 100% e extra são somadas por cliente no mês escolhido. Ao abrir, é selecionado automaticamente o último mês com folhas importadas.</p>
   <div class="tableWrap"><table id="clientsTable"></table></div>
+
+  <h2>Estatísticas anuais por cliente</h2>
+  <div class="toolbar"><label>Ano <select id="clientYear"></select></label></div>
+  <div class="tableWrap"><table id="clientAnnualTable"></table></div>
+
 </section>
 
 <section id="despesas" class="panel">
@@ -162,6 +182,11 @@
     <button>Guardar recibo</button>
   </form>
   <div id="receiptProgress" class="hint"></div><div class="tableWrap"><table id="receiptsTable"></table></div><h2>Comparação automática</h2><div id="receiptComparison" class="tableWrap"></div>
+
+  <h2>Arquivo anual de recibos</h2>
+  <div class="toolbar"><label>Ano <select id="receiptArchiveYear"></select></label></div>
+  <div class="tableWrap"><table id="receiptArchiveTable"></table></div>
+
 </section>
 
 <section id="definicoes" class="panel">
@@ -194,12 +219,32 @@
     <label>Multiplicador 165%<input name="m165" type="number" step="0.001"></label>
     <button>Guardar definições</button>
   </form>
+  
+    <div class="settingsBox">
+      <h3>💶 Simulador salarial</h3>
+      <p class="note">Simula um novo salário sem guardar nem alterar qualquer dado. Usa as horas que seriam pagas no mês escolhido.</p>
+      <div class="formGrid">
+        <label>Salário a simular (€)<input id="simSalary" type="number" min="0" step="0.01"></label>
+        <label>Mês de referência<input id="simMonth" type="month"></label>
+        <button type="button" id="simSalaryBtn">Simular</button>
+      </div>
+      <div id="simSalaryResult" class="statusBox"></div>
+    </div>
+
   <button id="clearBtn" class="danger">Apagar todos os dados</button>
 
     <div class="settingsBox">
       <h3>Backups automáticos de segurança</h3>
       <p class="note" id="safetyBackupInfo">A aplicação guarda até 5 cópias automáticas antes de operações importantes.</p>
       <button type="button" id="safetyBackupNowBtn">Criar backup de segurança agora</button>
+    </div>
+
+
+    
+    <div class="settingsBox">
+      <h3>🛟 Recuperação por backup automático</h3>
+      <p class="note">Podes restaurar uma das últimas 5 cópias internas. Antes de restaurar, a aplicação cria uma nova cópia do estado atual.</p>
+      <div class="tableWrap"><table id="safetyBackupTable"></table></div>
     </div>
 
 
@@ -210,6 +255,12 @@
       <div id="integrityResult" class="statusBox"></div>
     </div>
 
+
+    <div class="settingsBox">
+      <h3>📅 Preparação dos próximos anos</h3>
+      <p class="note" id="yearReadyInfo"></p>
+    </div>
+
 </section>
 </main>
 
@@ -218,17 +269,17 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
-<script src="app.js?v=3.12.6"></script>
+<script src="app.js?v=3.13.0"></script>
 <script>
 (async()=>{
  if(!('serviceWorker' in navigator) || !location.protocol.startsWith('http')) return;
  try{
-  const reg=await navigator.serviceWorker.register('sw.js?v=3.12.6',{updateViaCache:'none'});
+  const reg=await navigator.serviceWorker.register('sw.js?v=3.13.0',{updateViaCache:'none'});
   await reg.update();
   if(reg.waiting) reg.waiting.postMessage({type:'SKIP_WAITING'});
   navigator.serviceWorker.addEventListener('controllerchange',()=>{
-   if(!sessionStorage.getItem('reloaded-v3126')){
-    sessionStorage.setItem('reloaded-v3126','1');
+   if(!sessionStorage.getItem('reloaded-v3130')){
+    sessionStorage.setItem('reloaded-v3130','1');
     location.reload();
    }
   });
