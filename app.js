@@ -678,7 +678,7 @@ function parseReceiptText(text){
   if(vals.length) net=vals.at(-1);
  }
 
- return {month,base,extraHours,extraValue,ss,irs,subject,discounts,net,text:clean,parserVersion:3115};
+ return {month,base,extraHours,extraValue,ss,irs,subject,discounts,net,text:clean,parserVersion:3116};
 }
 async function extractReceipt(file){
  $('receiptProgress').textContent='A ler o recibo automaticamente…';
@@ -761,26 +761,85 @@ async function extractReceipt(file){
   }
 
   if(totalPages===1){
-   // Nos recibos de 1 página, o Total a Receber está na zona inferior direita.
-   const lower=candidates.filter(c=>c.y>H*0.45);
-   const rows=[];
-   for(const c of lower){
-    let row=rows.find(r=>Math.abs(r.y-c.y)<=24);
-    if(!row){ row={y:c.y,vals:[]}; rows.push(row); }
-    row.vals.push(c);
+   // RECIBOS DE 1 PÁGINA:
+   // localizar visualmente o texto "Total a Receber" e escolher o montante
+   // que está diretamente associado a esse rótulo. Não usar salário base,
+   // não usar "3.ª quantia" de outra linha e não fazer contas.
+   const normTxt=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+
+   let label=null;
+
+   // Primeiro procurar numa linha OCR completa.
+   for(const ln of lines){
+    const t=normTxt(ln.text);
+    if(t.includes('total') && t.includes('receber')){
+     const b=ln.bbox||{};
+     label={
+      x0:Number(b.x0||0), x1:Number(b.x1||0),
+      y0:Number(b.y0||0), y1:Number(b.y1||0)
+     };
+     break;
+    }
    }
-   const threeColRows=rows
-     .filter(r=>r.vals.length>=3)
-     .map(r=>({y:r.y,vals:[...r.vals].sort((a,b)=>a.x-b.x)}))
-     .sort((a,b)=>b.y-a.y);
 
-   if(threeColRows.length) return threeColRows[0].vals[2]?.v??null;
+   // Se o OCR separou "Total a" e "Receber", construir a caixa pelas palavras.
+   if(!label){
+    const hitWords=words.filter(w=>{
+     const t=normTxt(w.text);
+     return t.includes('total') || t.includes('receber');
+    });
+    const totals=hitWords.filter(w=>normTxt(w.text).includes('total'));
+    const receives=hitWords.filter(w=>normTxt(w.text).includes('receber'));
+    let best=null;
+    for(const a of totals){
+     for(const b of receives){
+      const ay=(Number(a.bbox?.y0||0)+Number(a.bbox?.y1||0))/2;
+      const by=(Number(b.bbox?.y0||0)+Number(b.bbox?.y1||0))/2;
+      const ax=(Number(a.bbox?.x0||0)+Number(a.bbox?.x1||0))/2;
+      const bx=(Number(b.bbox?.x0||0)+Number(b.bbox?.x1||0))/2;
+      const d=Math.abs(ay-by)+Math.abs(ax-bx)*0.15;
+      if(!best || d<best.d) best={a,b,d};
+     }
+    }
+    if(best){
+     label={
+      x0:Math.min(Number(best.a.bbox?.x0||0),Number(best.b.bbox?.x0||0)),
+      x1:Math.max(Number(best.a.bbox?.x1||0),Number(best.b.bbox?.x1||0)),
+      y0:Math.min(Number(best.a.bbox?.y0||0),Number(best.b.bbox?.y0||0)),
+      y1:Math.max(Number(best.a.bbox?.y1||0),Number(best.b.bbox?.y1||0))
+     };
+    }
+   }
 
-   const bottomRight=candidates.filter(c=>c.y>H*0.55 && c.x>W*0.45);
+   if(label){
+    const lx=(label.x0+label.x1)/2;
+    const ly=(label.y0+label.y1)/2;
+
+    // Procurar o valor mais próximo do rótulo, dando prioridade à mesma coluna
+    // e à zona imediatamente abaixo/ao lado do texto.
+    const plausible=candidates.filter(c=>{
+     const dx=Math.abs(c.x-lx);
+     const dy=c.y-ly;
+     return c.v>=50 && dx < W*0.28 && dy > -H*0.08 && dy < H*0.28;
+    });
+
+    if(plausible.length){
+     plausible.sort((a,b)=>{
+      const sa=Math.abs(a.x-lx)*1.7 + Math.abs(a.y-ly);
+      const sb=Math.abs(b.x-lx)*1.7 + Math.abs(b.y-ly);
+      return sa-sb;
+     });
+     return plausible[0].v;
+    }
+   }
+
+   // Fallback muito restrito: montante mais à direita na zona dos totais.
+   const bottomRight=candidates.filter(c=>c.y>H*0.60 && c.x>W*0.60);
    if(bottomRight.length){
-    bottomRight.sort((a,b)=>(b.x-a.x)||(b.y-a.y));
+    bottomRight.sort((a,b)=>(b.x-a.x)||(a.y-b.y));
     return bottomRight[0].v;
    }
+
    return null;
   }
 
@@ -843,7 +902,7 @@ async function extractReceipt(file){
  $('receiptProgress').textContent='';
  const parsed=parseReceiptText(text);
  if(netHint!=null)parsed.net=netHint;
- parsed.parserVersion=3115;
+ parsed.parserVersion=3116;
  return parsed;
 }
 function refreshReceiptParsed(receipt){
@@ -899,9 +958,9 @@ function repairStoredReceiptNet(){return false;}
 let receiptNetRefreshRunning=false;
 let receiptNetRefreshDone=false;
 
-async function refreshStoredReceiptNets3115(){
+async function refreshStoredReceiptNets3116(){
  if(receiptNetRefreshRunning||receiptNetRefreshDone)return;
- const todo=db.receipts.filter(r=>r?.parsed?.parserVersion!==3115 && r.fileKey);
+ const todo=db.receipts.filter(r=>r?.parsed?.parserVersion!==3116 && r.fileKey);
  if(!todo.length){receiptNetRefreshDone=true;return}
 
  receiptNetRefreshRunning=true;
@@ -970,7 +1029,7 @@ function receiptMonthSummary(month){
 }
 function renderReceipts(){
  renderReceiptsTableOnly();
- refreshStoredReceiptNets3115();
+ refreshStoredReceiptNets3116();
 }
 function renderSettings(){
  for(const el of $('settingsForm').elements)if(el.name)el.value=db.settings[el.name]??'';

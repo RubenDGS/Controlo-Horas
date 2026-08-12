@@ -417,3 +417,13 @@ VERSÃO 3.11.5 — TOTAL A RECEBER = 3.ª COLUNA
 - Força releitura dos recibos já guardados.
 - Não altera folhas, cálculos de horas, clientes, ajudas, despesas, férias, compensações,
   subsídios, backup/restauro, definições ou qualquer outra funcionalidade.
+
+VERSÃO 3.11.6 — RECIBOS DE 1 PÁGINA
+- Base integral: v3.11.5.
+- Mantém INALTERADA a regra que já ficou correta nos recibos de 2 páginas.
+- Corrige apenas os recibos de 1 página (janeiro e subsídios).
+- Em 1 página, localiza visualmente o rótulo “Total a Receber” e escolhe
+  o montante que está diretamente associado a esse rótulo.
+- Deixa de escolher 1500,00 € por engano.
+- Força releitura dos recibos já guardados.
+- Não altera qualquer outra funcionalidade.
