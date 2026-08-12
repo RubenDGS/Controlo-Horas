@@ -294,12 +294,14 @@ function salaryMonth(m){
  const gross=db.settings.salarioBase+grossHours,
  ss=gross*db.settings.taxaSS/100,
  irsBase=irs2026(db.settings.salarioBase),
- irsHours=grossHours*(irsBase.effective/2),
- regularNet=gross-ss-irsBase.value-irsHours;
+ irsBaseRounded=Math.floor(irsBase.value),
+ irsHoursRaw=grossHours*(irsBase.effective/2),
+ irsHours=Math.floor(irsHoursRaw),
+ regularNet=gross-ss-irsBaseRounded-irsHours;
  const correction=db.payments.find(x=>x.month===m);
  const baseNet=correction?.net??regularNet;
  const subsidy=subsidyNet(m);
- return{...g,grossHours,gross,ss,irs:irsBase.value+irsHours,regularNet:baseNet,subsidy,net:baseNet+subsidy};
+ return{...g,grossHours,gross,ss,irs:irsBaseRounded+irsHours,regularNet:baseNet,subsidy,net:baseNet+subsidy};
 }
 function easterDate(y){const a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),month=Math.floor((h+l-7*m+114)/31),day=((h+l-7*m+114)%31)+1;return new Date(y,month-1,day)}
 function isoLocal(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
@@ -323,15 +325,24 @@ function sheetDates(){
 }
 function mealDays(m){
  if(!m)return 0;
- const [y,mo]=m.split('-').map(Number),monthStart=new Date(y,mo-1,1),now=new Date();
+ const [y,mo]=m.split('-').map(Number);
+
+ // Regra da empresa: em julho não há subsídio de refeição.
+ if(mo===7)return 0;
+
+ const monthStart=new Date(y,mo-1,1),now=new Date();
  const currentStart=new Date(now.getFullYear(),now.getMonth(),1);
  if(monthStart>currentStart)return 0;
  const lastDay=m===currentMonth()?now.getDate():new Date(y,mo,0).getDate();
  const hol=holidays(y),worked=sheetDates();
  let n=0;
+
  for(let d=1;d<=lastDay;d++){
   const dt=new Date(y,mo-1,d),iso=isoLocal(dt),dow=dt.getDay();
-  if(dow!==0&&dow!==6&&!hol.has(iso)&&!worked.has(iso)&&!coveredByLeave(iso))n++;
+
+  // Fora de julho: conta todo o dia útil sem folha de horas.
+  // Férias e compensações NÃO retiram o subsídio de refeição.
+  if(dow!==0&&dow!==6&&!hol.has(iso)&&!worked.has(iso))n++;
  }
  return n;
 }

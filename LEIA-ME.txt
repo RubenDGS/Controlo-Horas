@@ -427,3 +427,23 @@ VERSÃO 3.11.6 — RECIBOS DE 1 PÁGINA
 - Deixa de escolher 1500,00 € por engano.
 - Força releitura dos recibos já guardados.
 - Não altera qualquer outra funcionalidade.
+
+VERSÃO 3.11.7 — REGRA DO SUBSÍDIO DE REFEIÇÃO
+- Base integral: v3.11.6.
+- Alteração exclusivamente na função de cálculo do subsídio de refeição.
+- Julho: 0 dias / 0,00 € de subsídio de refeição, sempre.
+- Restantes meses: conta os dias úteis sem folha de horas.
+- Férias e dias de compensação deixam de excluir o subsídio de refeição.
+- Mantém a exclusão dos dias com folha de horas.
+- As folhas, recibos, despesas, férias/compensações, locais, backups e restantes cálculos não foram alterados.
+- Não é necessário apagar nem voltar a inserir folhas já existentes.
+
+VERSÃO 3.11.8 — ARREDONDAMENTO DO IRS
+- Base integral: v3.11.7.
+- Alteração exclusivamente no arredondamento da retenção de IRS usada no cálculo do líquido.
+- A retenção de IRS passa a ser arredondada à unidade de euro antes de calcular o líquido.
+- Exemplo com salário base de 1.500 € e sem horas extra:
+  SS 165 € + IRS 168 € -> líquido 1.167 €.
+- Não altera folhas, recibos, clientes, ajudas, despesas, férias/compensações,
+  subsídio de refeição, subsídios de férias/Natal, backups, definições ou leitor de recibos.
+- Não é necessário apagar nem voltar a inserir qualquer dado.
