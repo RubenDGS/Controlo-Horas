@@ -259,6 +259,26 @@ function isDuplicateSheet(a,b){
  if(A.local&&B.local&&A.local!==B.local)return false;
  return Boolean(A.first||A.dates.length);
 }
+function duplicateSheetInfo(candidate){
+ const found=db.sheets.find(x=>isDuplicateSheet(candidate,x));
+ if(!found)return null;
+
+ const id=sheetIdentity(found);
+ const client=found.cliente||found.client||'Cliente não identificado';
+ const local=found.local||'';
+ const period=id.first&&id.last
+   ?(id.first===id.last?id.first:`${id.first} a ${id.last}`)
+   :(found.dataInicial&&found.dataFinal?`${found.dataInicial} a ${found.dataFinal}`:'período não identificado');
+
+ return{
+  found,
+  client,
+  local,
+  period,
+  message:`Já existe uma folha para ${client}${local?` - ${local}`:''} no período ${period}.`
+ };
+}
+
 
 function irs2026(R){
  R=Math.max(0,num(R));

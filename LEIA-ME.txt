@@ -499,3 +499,12 @@ VERSÃO 3.12.3 — MELHORIA 2/5: VALORES USADOS EM CADA MÊS
 - Não altera qualquer fórmula ou cálculo.
 - Não altera folhas, recibos, clientes, despesas, backups ou dados guardados.
 - A chave de armazenamento continua: controloHorasV6.
+
+VERSÃO 3.12.4 — MELHORIA 3/5: AVISO DE DUPLICADO MAIS INTELIGENTE
+- Base integral: v3.12.3 validada.
+- Mantém a mesma chave de dados: controloHorasV6.
+- O mesmo cliente/local pode ser importado novamente em datas diferentes.
+- Só é bloqueada uma folha quando coincide efetivamente o mesmo período/datas.
+- Quando existe duplicado, o aviso passa a indicar o cliente/local e o período já existente.
+- Não altera nem apaga folhas já guardadas.
+- Não altera cálculos, recibos, salários, subsídio de refeição, despesas, backups ou restantes funcionalidades.
