@@ -1,5 +1,5 @@
-const C='controlo-horas-v3-11-8-arredondamento-irs';
-const A=['./','./index.html','./styles.css','./app.js?v=3.11.8','./manifest.webmanifest','./logotipo.png','./icon-192.png','./icon-512.png','./locations.json'];
+const C='controlo-horas-v3-11-9-subsidio-refeicao-corrigido';
+const A=['./','./index.html','./styles.css','./app.js?v=3.11.9','./manifest.webmanifest','./logotipo.png','./icon-192.png','./icon-512.png','./locations.json'];
 const SHARED_CACHE='controlo-horas-shared-backup-v1';
 const SHARED_KEY=new URL('./__shared_backup__.json',self.registration.scope).href;
 

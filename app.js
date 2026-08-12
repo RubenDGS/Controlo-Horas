@@ -44,6 +44,7 @@ let db=load(),locations=[],pendingImports=[];
  }
  if(num(db.settings.salarioBase)<=0||num(db.settings.salarioBase)>10000){db.settings.salarioBase=1500;changed=true}
  if(num(db.settings.valorHora)<=0||num(db.settings.valorHora)>100){db.settings.valorHora=8.65;changed=true}
+ if(num(db.settings.refeicaoDia)<=0||num(db.settings.refeicaoDia)>100){db.settings.refeicaoDia=10.46;changed=true}
  for(const p of db.payments||[]){
   if(num(p.net)>5000||num(p.net)<0){p.net=null;changed=true}
  }
@@ -307,41 +308,65 @@ function easterDate(y){const a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4
 function isoLocal(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
 function holidays(y){const fixed=['01-01','04-25','05-01','06-10','08-15','10-05','11-01','12-01','12-08','12-25'].map(x=>`${y}-${x}`);const e=easterDate(y),good=new Date(e);good.setDate(e.getDate()-2);const corpus=new Date(e);corpus.setDate(e.getDate()+60);return new Set([...fixed,isoLocal(good),isoLocal(e),isoLocal(corpus)])}
 function coveredByLeave(date){return db.used.some(x=>date>=x.date&&date<=(x.endDate||x.date))}
-function sheetDates(){
+function sheetDates(m=''){
  const set=new Set();
+
  for(const s of db.sheets){
-  // Dias explicitamente registados.
-  (s.entries||[]).forEach(e=>{if(e.date)set.add(e.date)});
-  // A folha semanal cobre todo o intervalo entre a primeira e a última data.
+  const entries=Array.isArray(s.entries)?s.entries.filter(e=>e?.date):[];
+
+  // REGRA PRINCIPAL:
+  // uma folha só exclui do subsídio os dias que estão realmente escritos
+  // nas linhas diárias da própria folha.
+  if(entries.length){
+   for(const e of entries){
+    if(!m || monthOf(e.date)===m)set.add(e.date);
+   }
+   continue;
+  }
+
+  // Compatibilidade apenas com folhas antigas que não tenham entries:
+  // nesses casos usar o intervalo guardado, mas limitado ao mês pedido.
   if(s.dataInicial&&s.dataFinal){
-   const start=new Date(s.dataInicial+'T12:00:00'),end=new Date(s.dataFinal+'T12:00:00');
-   for(let d=new Date(start);d<=end;d.setDate(d.getDate()+1)){
-    const dow=d.getDay();
-    if(dow!==0&&dow!==6)set.add(isoLocal(d));
+   const start=new Date(s.dataInicial+'T12:00:00');
+   const end=new Date(s.dataFinal+'T12:00:00');
+
+   if(!isNaN(start)&&!isNaN(end)&&start<=end){
+    for(let d=new Date(start);d<=end;d.setDate(d.getDate()+1)){
+     const iso=isoLocal(d),dow=d.getDay();
+     if(dow!==0&&dow!==6&&(!m||monthOf(iso)===m))set.add(iso);
+    }
    }
   }
  }
+
  return set;
 }
 function mealDays(m){
  if(!m)return 0;
  const [y,mo]=m.split('-').map(Number);
 
- // Regra da empresa: em julho não há subsídio de refeição.
+ // Regra da empresa: julho não recebe subsídio de refeição.
  if(mo===7)return 0;
 
  const monthStart=new Date(y,mo-1,1),now=new Date();
  const currentStart=new Date(now.getFullYear(),now.getMonth(),1);
  if(monthStart>currentStart)return 0;
- const lastDay=m===currentMonth()?now.getDate():new Date(y,mo,0).getDate();
- const hol=holidays(y),worked=sheetDates();
- let n=0;
 
+ const lastDay=m===currentMonth()?now.getDate():new Date(y,mo,0).getDate();
+ const hol=holidays(y);
+
+ // Só considerar folhas do próprio mês e apenas os dias efetivamente
+ // registados nessas folhas.
+ const worked=sheetDates(m);
+
+ let n=0;
  for(let d=1;d<=lastDay;d++){
   const dt=new Date(y,mo-1,d),iso=isoLocal(dt),dow=dt.getDay();
 
-  // Fora de julho: conta todo o dia útil sem folha de horas.
-  // Férias e compensações NÃO retiram o subsídio de refeição.
+  // Fora de julho:
+  // - dia útil sem folha = recebe subsídio;
+  // - férias/compensações não retiram subsídio;
+  // - dia com folha = não recebe subsídio.
   if(dow!==0&&dow!==6&&!hol.has(iso)&&!worked.has(iso))n++;
  }
  return n;
