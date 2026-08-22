@@ -679,3 +679,14 @@ SEGURANÇA:
 - Chave de dados continua controloHorasV6.
 - Estruturas novas são aditivas e têm valores vazios por defeito.
 - Fórmulas existentes de salário, horas, ajudas e recibos não foram substituídas.
+
+VERSÃO 3.15.1 — FERIADOS PORTUGAL
+Base preservada: v3.15.0.
+
+- Feriados nacionais portugueses fixos.
+- Feriados móveis calculados automaticamente: Sexta-Feira Santa, Domingo de Páscoa e Corpo de Deus.
+- Feriados destacados no calendário mensal, com designação.
+- Feriados municipais configuráveis nas Definições.
+- Não existe qualquer integração com Ocupação Técnica/SharePoint nesta versão.
+- Não altera folhas, recibos, despesas, salários ou fórmulas existentes.
+- A v3.15.0 deve permanecer guardada como versão de recuperação.

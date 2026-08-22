@@ -34,7 +34,7 @@ async function openStoredSheet(key,name){
 }
 
 const $=id=>document.getElementById(id);
-const defaults={settings:{salarioBase:1500,taxaSS:11,valorHora:8.65,salaryHistory:[{from:'2026-01-01',salary:1500}],nomeUtilizador:'',estadoCivil:'solteiro',dependentes:0,ajudaDia:90,alojDia:65,refeicaoDia:10.46,inicioDespesas:'2027-01-01',saldoInicial:41,dataCorte:'2026-07-25',diasFeriasAnuais:22,primeiroAnoFerias:2027,m25:.25,m125:1.25,m1375:1.375,m150:1.5,m165:1.65},sheets:[],used:[],payments:[],expenses:[],receipts:[],closedMonths:[],closedYears:[],auditLog:[],resolvedDiffs:{},favorites:[],travelSessions:[]};
+const defaults={settings:{salarioBase:1500,taxaSS:11,valorHora:8.65,salaryHistory:[{from:'2026-01-01',salary:1500}],nomeUtilizador:'',estadoCivil:'solteiro',dependentes:0,ajudaDia:90,alojDia:65,refeicaoDia:10.46,inicioDespesas:'2027-01-01',saldoInicial:41,dataCorte:'2026-07-25',diasFeriasAnuais:22,primeiroAnoFerias:2027,m25:.25,m125:1.25,m1375:1.375,m150:1.5,m165:1.65},sheets:[],used:[],payments:[],expenses:[],receipts:[],closedMonths:[],closedYears:[],auditLog:[],resolvedDiffs:{},favorites:[],travelSessions:[],municipalHolidays:[]};
 let db=load(),locations=[],pendingImports=[];
 (function repairSalarySettings(){
  let changed=false;
@@ -80,7 +80,7 @@ function safetyBackupCount(){
  }catch{return 0}
 }
 
-function load(){try{const o=JSON.parse(localStorage.getItem(KEY)||'{}');return {...clone(defaults),...o,settings:{...defaults.settings,...(o.settings||{})},sheets:Array.isArray(o.sheets)?o.sheets:[],used:Array.isArray(o.used)?o.used:[],payments:Array.isArray(o.payments)?o.payments:[],expenses:Array.isArray(o.expenses)?o.expenses:[],receipts:Array.isArray(o.receipts)?o.receipts:[],closedMonths:Array.isArray(o.closedMonths)?o.closedMonths:[],closedYears:Array.isArray(o.closedYears)?o.closedYears:[],auditLog:Array.isArray(o.auditLog)?o.auditLog:[],resolvedDiffs:o.resolvedDiffs&&typeof o.resolvedDiffs==='object'?o.resolvedDiffs:{},favorites:Array.isArray(o.favorites)?o.favorites:[],travelSessions:Array.isArray(o.travelSessions)?o.travelSessions:[]}}catch{return clone(defaults)}}
+function load(){try{const o=JSON.parse(localStorage.getItem(KEY)||'{}');return {...clone(defaults),...o,settings:{...defaults.settings,...(o.settings||{})},sheets:Array.isArray(o.sheets)?o.sheets:[],used:Array.isArray(o.used)?o.used:[],payments:Array.isArray(o.payments)?o.payments:[],expenses:Array.isArray(o.expenses)?o.expenses:[],receipts:Array.isArray(o.receipts)?o.receipts:[],closedMonths:Array.isArray(o.closedMonths)?o.closedMonths:[],closedYears:Array.isArray(o.closedYears)?o.closedYears:[],auditLog:Array.isArray(o.auditLog)?o.auditLog:[],resolvedDiffs:o.resolvedDiffs&&typeof o.resolvedDiffs==='object'?o.resolvedDiffs:{},favorites:Array.isArray(o.favorites)?o.favorites:[],travelSessions:Array.isArray(o.travelSessions)?o.travelSessions:[],municipalHolidays:Array.isArray(o.municipalHolidays)?o.municipalHolidays:[]}}catch{return clone(defaults)}}
 function save(){localStorage.setItem(KEY,JSON.stringify(db));render()}
 function num(v){if(typeof v==='number')return Number.isFinite(v)?v:0;if(v===null||v===undefined||v==='')return 0;const x=Number(String(v).trim().replace(/\s/g,'').replace(/€/g,'').replace(/\.(?=\d{3}(?:\D|$))/g,'').replace(',','.'));return Number.isFinite(x)?x:0}
 function hourValue(v){
@@ -116,7 +116,7 @@ function today(){return new Date().toISOString().slice(0,10)}
 function currentMonth(){return today().slice(0,7)}
 function isClosed(m){return db.closedMonths.includes(m)||(Array.isArray(db.closedYears)&&db.closedYears.includes(String(m||'').slice(0,4)))}
 
-const APP_VERSION='3.15.0';
+const APP_VERSION='3.15.1';
 const VERSION_KEY='controloHorasV6AppVersion';
 let correctingMonth=sessionStorage.getItem('controloHorasCorrectionMonth')||'';
 
@@ -837,6 +837,48 @@ function renderMonthChecklist(){
  $('monthChecklist').innerHTML=line('Folhas carregadas',c.sheets)+line('Recibo(s) completo(s)',c.receipt)+line('Despesas registadas quando aplicável',c.expenses)+line('Comparação sem diferença',c.diff)+line('Mês validado',c.validated);
 }
 
+
+function easterSunday(year){
+ const a=year%19,b=Math.floor(year/100),c=year%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3);
+ const h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451);
+ const month=Math.floor((h+l-7*m+114)/31),day=((h+l-7*m+114)%31)+1;
+ return new Date(year,month-1,day,12);
+}
+function isoLocal(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
+function addDaysLocal(d,n){const x=new Date(d);x.setDate(x.getDate()+n);return x}
+function portugalHolidays(year){
+ const e=easterSunday(year);
+ const rows=[
+  [`${year}-01-01`,'Ano Novo'],[`${year}-04-25`,'Dia da Liberdade'],[`${year}-05-01`,'Dia do Trabalhador'],
+  [`${year}-06-10`,'Dia de Portugal, de Camões e das Comunidades Portuguesas'],[`${year}-08-15`,'Assunção de Nossa Senhora'],
+  [`${year}-10-05`,'Implantação da República'],[`${year}-11-01`,'Dia de Todos os Santos'],
+  [`${year}-12-01`,'Restauração da Independência'],[`${year}-12-08`,'Imaculada Conceição'],[`${year}-12-25`,'Natal'],
+  [isoLocal(addDaysLocal(e,-2)),'Sexta-Feira Santa'],[isoLocal(e),'Domingo de Páscoa'],[isoLocal(addDaysLocal(e,60)),'Corpo de Deus']
+ ];
+ return Object.fromEntries(rows);
+}
+function holidayInfo(date){
+ const y=Number(String(date).slice(0,4)),nat=portugalHolidays(y);
+ if(nat[date])return {name:nat[date],type:'nacional'};
+ const m=(db.municipalHolidays||[]).find(x=>x.date===date);
+ return m?{name:m.name||'Feriado municipal',type:'municipal'}:null;
+}
+function renderHolidaySettings(){
+ if(!$('municipalHolidayTable'))return;
+ let h='<tr><th>Data</th><th>Designação</th><th></th></tr>';
+ for(const x of [...(db.municipalHolidays||[])].sort((a,b)=>a.date.localeCompare(b.date))){
+  h+=`<tr><td>${x.date}</td><td>${x.name}</td><td><button onclick="removeMunicipalHoliday('${x.id}')">Apagar</button></td></tr>`;
+ }
+ if(!(db.municipalHolidays||[]).length)h+='<tr><td colspan="3">Sem feriados municipais adicionados.</td></tr>';
+ $('municipalHolidayTable').innerHTML=h;
+}
+window.removeMunicipalHoliday=function(id){
+ const x=(db.municipalHolidays||[]).find(v=>v.id===id);if(!x)return;
+ createSafetyBackup('Antes de apagar feriado municipal');
+ db.municipalHolidays=db.municipalHolidays.filter(v=>v.id!==id);
+ audit('Feriado municipal apagado',`${x.date} · ${x.name}`,x.date);save();
+};
+
 function renderWorkCalendar(){
  if(!$('workCalendar'))return;
  const m=$('dashMonth').value||currentMonth();
@@ -854,10 +896,10 @@ function renderWorkCalendar(){
  for(let i=0;i<start;i++)h+='<div class="calendarCell empty"></div>';
  for(let d=1;d<=last.getDate();d++){
   const iso=`${m}-${String(d).padStart(2,'0')}`,dt=new Date(y,mo-1,d),dow=dt.getDay();
-  const work=workMap.get(iso)||[];
+  const work=workMap.get(iso)||[],holiday=holidayInfo(iso);
   const leave=(db.used||[]).find(x=>iso>=x.date&&iso<=(x.endDate||x.date));
-  const cls=work.length?'work':leave?'leave':(dow===0||dow===6)?'weekend':'';
-  h+=`<div class="calendarCell ${cls}"><div class="dayNum">${d}</div>${work.slice(0,2).map(x=>`<div>${x}</div>`).join('')}${leave?`<div>${leave.type||'Ausência'}</div>`:''}</div>`;
+  const cls=holiday?'holiday':work.length?'work':leave?'leave':(dow===0||dow===6)?'weekend':'';
+  h+=`<div class="calendarCell ${cls}" title="${holiday?holiday.name:''}"><div class="dayNum">${d}${holiday?' 🇵🇹':''}</div>${holiday?`<div class="holidayName">${holiday.name}</div>`:''}${work.slice(0,2).map(x=>`<div>${x}</div>`).join('')}${leave?`<div>${leave.type||'Ausência'}</div>`:''}</div>`;
  }
  $('workCalendar').innerHTML=h;
 }
@@ -2317,6 +2359,8 @@ function renderSettings(){
  renderAudit();renderBackupCenter();
 
  renderAppState();
+
+ renderHolidaySettings();
 }
 
 async function processSharedBackupOnLaunch(){
@@ -2593,6 +2637,16 @@ if($('resolveDiffBtn'))$('resolveDiffBtn').onclick=()=>{
 if($('unresolveDiffBtn'))$('unresolveDiffBtn').onclick=()=>{
  const months=[...new Set(db.receipts.map(r=>r.month).filter(Boolean))].sort().reverse(),m=months[0];if(!m||!db.resolvedDiffs?.[m])return;
  delete db.resolvedDiffs[m];audit('Diferença de recibo reaberta',m,`${m}-01`);save();
+};
+
+
+if($('municipalHolidayForm'))$('municipalHolidayForm').onsubmit=e=>{
+ e.preventDefault();const date=$('municipalHolidayDate').value,name=$('municipalHolidayName').value.trim();if(!date||!name)return;
+ if(holidayInfo(date)){alert('Já existe um feriado registado nesta data.');return}
+ createSafetyBackup('Antes de adicionar feriado municipal');
+ db.municipalHolidays??=[];db.municipalHolidays.push({id:uid(),date,name});
+ audit('Feriado municipal adicionado',`${date} · ${name}`,date);
+ $('municipalHolidayForm').reset();save();
 };
 
 if($('integrityCheckBtn'))$('integrityCheckBtn').onclick=()=>{
