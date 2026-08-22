@@ -34,7 +34,7 @@ async function openStoredSheet(key,name){
 }
 
 const $=id=>document.getElementById(id);
-const defaults={settings:{salarioBase:1500,taxaSS:11,valorHora:8.65,salaryHistory:[{from:'2026-01-01',salary:1500}],nomeUtilizador:'',estadoCivil:'solteiro',dependentes:0,ajudaDia:90,alojDia:65,refeicaoDia:10.46,inicioDespesas:'2027-01-01',saldoInicial:41,dataCorte:'2026-07-25',diasFeriasAnuais:22,primeiroAnoFerias:2027,m25:.25,m125:1.25,m1375:1.375,m150:1.5,m165:1.65},sheets:[],used:[],payments:[],expenses:[],receipts:[],closedMonths:[],closedYears:[],auditLog:[]};
+const defaults={settings:{salarioBase:1500,taxaSS:11,valorHora:8.65,salaryHistory:[{from:'2026-01-01',salary:1500}],nomeUtilizador:'',estadoCivil:'solteiro',dependentes:0,ajudaDia:90,alojDia:65,refeicaoDia:10.46,inicioDespesas:'2027-01-01',saldoInicial:41,dataCorte:'2026-07-25',diasFeriasAnuais:22,primeiroAnoFerias:2027,m25:.25,m125:1.25,m1375:1.375,m150:1.5,m165:1.65},sheets:[],used:[],payments:[],expenses:[],receipts:[],closedMonths:[],closedYears:[],auditLog:[],resolvedDiffs:{},favorites:[],travelSessions:[]};
 let db=load(),locations=[],pendingImports=[];
 (function repairSalarySettings(){
  let changed=false;
@@ -80,7 +80,7 @@ function safetyBackupCount(){
  }catch{return 0}
 }
 
-function load(){try{const o=JSON.parse(localStorage.getItem(KEY)||'{}');return {...clone(defaults),...o,settings:{...defaults.settings,...(o.settings||{})},sheets:Array.isArray(o.sheets)?o.sheets:[],used:Array.isArray(o.used)?o.used:[],payments:Array.isArray(o.payments)?o.payments:[],expenses:Array.isArray(o.expenses)?o.expenses:[],receipts:Array.isArray(o.receipts)?o.receipts:[],closedMonths:Array.isArray(o.closedMonths)?o.closedMonths:[],closedYears:Array.isArray(o.closedYears)?o.closedYears:[],auditLog:Array.isArray(o.auditLog)?o.auditLog:[]}}catch{return clone(defaults)}}
+function load(){try{const o=JSON.parse(localStorage.getItem(KEY)||'{}');return {...clone(defaults),...o,settings:{...defaults.settings,...(o.settings||{})},sheets:Array.isArray(o.sheets)?o.sheets:[],used:Array.isArray(o.used)?o.used:[],payments:Array.isArray(o.payments)?o.payments:[],expenses:Array.isArray(o.expenses)?o.expenses:[],receipts:Array.isArray(o.receipts)?o.receipts:[],closedMonths:Array.isArray(o.closedMonths)?o.closedMonths:[],closedYears:Array.isArray(o.closedYears)?o.closedYears:[],auditLog:Array.isArray(o.auditLog)?o.auditLog:[],resolvedDiffs:o.resolvedDiffs&&typeof o.resolvedDiffs==='object'?o.resolvedDiffs:{},favorites:Array.isArray(o.favorites)?o.favorites:[],travelSessions:Array.isArray(o.travelSessions)?o.travelSessions:[]}}catch{return clone(defaults)}}
 function save(){localStorage.setItem(KEY,JSON.stringify(db));render()}
 function num(v){if(typeof v==='number')return Number.isFinite(v)?v:0;if(v===null||v===undefined||v==='')return 0;const x=Number(String(v).trim().replace(/\s/g,'').replace(/€/g,'').replace(/\.(?=\d{3}(?:\D|$))/g,'').replace(',','.'));return Number.isFinite(x)?x:0}
 function hourValue(v){
@@ -116,7 +116,7 @@ function today(){return new Date().toISOString().slice(0,10)}
 function currentMonth(){return today().slice(0,7)}
 function isClosed(m){return db.closedMonths.includes(m)||(Array.isArray(db.closedYears)&&db.closedYears.includes(String(m||'').slice(0,4)))}
 
-const APP_VERSION='3.14.0';
+const APP_VERSION='3.15.0';
 const VERSION_KEY='controloHorasV6AppVersion';
 let correctingMonth=sessionStorage.getItem('controloHorasCorrectionMonth')||'';
 
@@ -993,6 +993,134 @@ function renderReceiptHint(){
  $('receiptHintBox').innerHTML=m?`<strong>Análise rápida ${m}</strong><br>${receiptDifferenceHint(m)}`:'Sem recibos para analisar.';
 }
 
+
+function activeSheetToday(){
+ const t=today();return db.sheets.filter(s=>String(s.dataInicial||'')<=t&&String(s.dataFinal||'')>=t);
+}
+function dataHealthReport(){
+ const dup=[],overlaps=[],seen=new Map();
+ for(const s of db.sheets){
+  const k=`${s.name}|${s.dataInicial}|${s.dataFinal}`;
+  if(seen.has(k))dup.push(s);else seen.set(k,s.id);
+ }
+ const sorted=[...db.sheets].sort((a,b)=>String(a.dataInicial).localeCompare(String(b.dataInicial)));
+ for(let i=0;i<sorted.length;i++)for(let j=i+1;j<Math.min(sorted.length,i+8);j++){
+  const a=sorted[i],b=sorted[j];
+  if(a.id!==b.id&&a.dataInicial<=b.dataFinal&&b.dataInicial<=a.dataFinal&&norm(a.cliente)!==norm(b.cliente))overlaps.push([a,b]);
+ }
+ const missingReceipts=[];
+ const months=[...new Set(db.sheets.map(s=>monthOf(s.dataFinal)).filter(Boolean))];
+ for(const m of months)if(!(db.receipts||[]).some(r=>r.month===m))missingReceipts.push(m);
+ return {dup,overlaps,missingReceipts,ok:dup.length===0&&overlaps.length===0};
+}
+function renderTodayPanel(){
+ if(!$('todayPanel'))return;
+ const t=today(),sheets=activeSheetToday(),ex=db.expenses.find(x=>x.date===t);
+ $('todayPanel').innerHTML=`<div class="statusList"><div class="statusLine"><span>Data</span><strong>${t}</strong></div>
+ <div class="statusLine"><span>Trabalho hoje</span><strong>${sheets.length?sheets.map(s=>s.cliente||s.local).join(', '):'Sem folha ativa'}</strong></div>
+ <div class="statusLine"><span>Despesas hoje</span><strong>${ex?euro(expenseGrandTotal(ex)):'Não registadas'}</strong></div>
+ <div class="statusLine"><span>Saldo férias/comp.</span><strong>${fmt(balance())} dias</strong></div></div>`;
+}
+function renderPendingCenter(){
+ if(!$('pendingCenter'))return;
+ const h=dataHealthReport(),items=[];
+ h.missingReceipts.slice(0,6).forEach(m=>items.push(`Recibo em falta para ${m}`));
+ const months=[...new Set(db.receipts.map(r=>r.month).filter(Boolean))];
+ months.forEach(m=>{const r=receiptMonthSummary(m);if(r.actual!=null&&Math.abs(num(r.diff))>=.05&&!db.resolvedDiffs?.[m])items.push(`Diferença por justificar em ${m}: ${r.diff>0?'+':''}${euro(r.diff)}`)});
+ const openMonths=[...new Set(db.sheets.map(s=>monthOf(s.dataFinal)).filter(Boolean))].filter(m=>!isClosed(m));
+ openMonths.slice(0,4).forEach(m=>items.push(`Mês ${m} ainda não validado`));
+ $('pendingCenter').innerHTML=items.length?`<ul>${items.slice(0,12).map(x=>`<li>${x}</li>`).join('')}</ul>`:'<strong>✅ Sem pendências detetadas.</strong>';
+}
+function renderDataHealth(){
+ if(!$('dataHealth'))return;
+ const h=dataHealthReport();
+ $('dataHealth').innerHTML=`<div class="statusList"><div class="statusLine"><span>Folhas</span><strong>${db.sheets.length}</strong></div>
+ <div class="statusLine"><span>Recibos</span><strong>${db.receipts.length}</strong></div><div class="statusLine"><span>Despesas</span><strong>${db.expenses.length}</strong></div>
+ <div class="statusLine"><span>Duplicados exatos</span><strong>${h.dup.length}</strong></div><div class="statusLine"><span>Sobreposições a confirmar</span><strong>${h.overlaps.length}</strong></div></div>`;
+}
+function renderAnnualVisual(){
+ if(!$('annualVisual'))return;
+ const y=String(($('dashMonth').value||currentMonth())).slice(0,4);let net=0,extra=0,saved=0;
+ for(let i=1;i<=12;i++){const m=`${y}-${String(i).padStart(2,'0')}`,p=salaryMonth(m),e=expenseSummary(m);net+=num(p.net);extra+=num(p.h25)+num(p.h125)+num(p.h1375)+num(p.h150)+num(p.h165);saved+=num(e.remain)}
+ $('annualVisual').innerHTML=`<div class="statusList"><div class="statusLine"><span>Líquido calculado</span><strong>${euro(net)}</strong></div><div class="statusLine"><span>Horas extra</span><strong>${fmt(extra)} h</strong></div><div class="statusLine"><span>Poupança deslocações</span><strong>${euro(saved)}</strong></div></div>`;
+}
+function renderAnnualTimeline(){
+ if(!$('annualTimeline'))return;
+ const y=String(($('dashMonth').value||currentMonth())).slice(0,4);
+ $('annualTimeline').innerHTML=Array.from({length:12},(_,i)=>{
+  const m=`${y}-${String(i+1).padStart(2,'0')}`,ss=db.sheets.filter(s=>monthOf(s.dataFinal)===m),u=db.used.filter(x=>monthOf(x.date)===m);
+  return `<div class="timelineMonth"><strong>${m}</strong><span>${ss.length} folha(s)</span><span>${u.length} ausência(s)</span></div>`;
+ }).join('');
+}
+function renderTravelMode(){
+ if(!$('travelModeBox'))return;
+ const active=(db.travelSessions||[]).find(x=>!x.end);
+ $('travelModeBox').innerHTML=active?`<strong>Em curso: ${active.client||'Deslocação'}</strong><br>${active.start}<br><button onclick="endTravelSession('${active.id}')">Terminar deslocação</button>`:
+ `<div class="formGrid"><label>Cliente<input id="travelSessionClient"></label><label>Local<input id="travelSessionLocal"></label></div><button onclick="startTravelSession()">Iniciar deslocação</button>`;
+}
+window.startTravelSession=function(){
+ const client=$('travelSessionClient')?.value?.trim(),local=$('travelSessionLocal')?.value?.trim();
+ db.travelSessions??=[];db.travelSessions.push({id:uid(),client,local,start:today(),end:''});audit('Deslocação iniciada',`${client} · ${local}`,today());save();
+};
+window.endTravelSession=function(id){
+ const x=db.travelSessions.find(v=>v.id===id);if(!x)return;x.end=today();audit('Deslocação terminada',`${x.client} · ${x.local}`,today());save();
+};
+function runQuickSimulator(){
+ const base=num($('simSalary').value),hours=num($('simHours').value),rate=num($('simRate').value),aid=num($('simAidDays').value)*num(db.settings.ajudaDia),lod=num($('simLodgingDays').value)*num(db.settings.alojDia),expenses=num($('simExpenses').value);
+ const hourly=base/(30*8),extra=hourly*hours*rate,ss=(base+extra)*num(db.settings.taxaSS)/100;
+ const ir=irs2026(base),irs=Math.floor(ir.value)+Math.floor(extra*(ir.effective/2)),net=base+extra-ss-irs;
+ $('simulatorResult').innerHTML=`<div class="statusList"><div class="statusLine"><span>Horas extra</span><strong>${euro(extra)}</strong></div><div class="statusLine"><span>Líquido salarial aproximado</span><strong>${euro(net)}</strong></div><div class="statusLine"><span>Ajudas + alojamento</span><strong>${euro(aid+lod)}</strong></div><div class="statusLine"><span>Resultado da deslocação</span><strong>${euro(aid+lod-expenses)}</strong></div></div><p class="note">Simulação. Não altera os teus dados.</p>`;
+}
+function annualMetrics(y){
+ let net=0,travel=0,lodging=0,expenses=0,hours=0;
+ for(let i=1;i<=12;i++){const m=`${y}-${String(i).padStart(2,'0')}`,p=salaryMonth(m),e=expenseSummary(m);net+=num(p.net);travel+=num(p.travel);lodging+=num(p.lodging);expenses+=num(e.food)+num(e.sleep)+num(e.other);hours+=num(p.h25)+num(p.h125)+num(p.h1375)+num(p.h150)+num(p.h165)}
+ return {net,travel,lodging,expenses,hours};
+}
+function renderYearSelectors(){
+ if(!$('compareYearA'))return;
+ const years=[...new Set([...db.sheets.map(s=>String(s.dataFinal||'').slice(0,4)),...db.receipts.map(r=>String(r.month||'').slice(0,4))].filter(Boolean))].sort().reverse();
+ const opts=(years.length?years:[String(new Date().getFullYear())]).map(y=>`<option>${y}</option>`).join('');
+ if(!$('compareYearA').options.length)$('compareYearA').innerHTML=opts;
+ if(!$('compareYearB').options.length){$('compareYearB').innerHTML=opts;if($('compareYearB').options.length>1)$('compareYearB').selectedIndex=1}
+}
+function compareYears(){
+ const a=$('compareYearA').value,b=$('compareYearB').value,A=annualMetrics(a),B=annualMetrics(b);
+ const rows=[['Líquido',A.net,B.net,'€'],['Horas extra',A.hours,B.hours,'h'],['Ajudas',A.travel,B.travel,'€'],['Alojamento',A.lodging,B.lodging,'€'],['Despesas',A.expenses,B.expenses,'€']];
+ $('compareYearsResult').innerHTML='<table><tr><th>Indicador</th><th>'+a+'</th><th>'+b+'</th><th>Diferença</th></tr>'+rows.map(r=>`<tr><td>${r[0]}</td><td>${r[3]==='€'?euro(r[1]):fmt(r[1])+' h'}</td><td>${r[3]==='€'?euro(r[2]):fmt(r[2])+' h'}</td><td>${r[3]==='€'?euro(r[2]-r[1]):fmt(r[2]-r[1])+' h'}</td></tr>`).join('')+'</table>';
+}
+function renderClientInsights(){
+ if(!$('clientInsights'))return;
+ const map={};
+ db.sheets.forEach(s=>{const k=s.cliente||'Sem cliente';map[k]??={n:0,normal:0,extra:0,aid:0,lod:0};const x=map[k];x.n++;x.normal+=num(s.normal);x.extra+=num(s.h25)+num(s.h125)+num(s.h1375)+num(s.h150)+num(s.h165);x.aid+=num(s.diasAjuda)*num(s.ajudaUnit||db.settings.ajudaDia);x.lod+=lodgingTotalForSheet(s)});
+ const rows=Object.entries(map).sort((a,b)=>b[1].n-a[1].n);
+ $('clientInsights').innerHTML='<div class="tableWrap"><table><tr><th>Cliente</th><th>Folhas</th><th>100%</th><th>Extra</th><th>Ajudas</th><th>Aloj.</th></tr>'+rows.map(([k,x])=>`<tr><td>${k}</td><td>${x.n}</td><td>${fmt(x.normal)} h</td><td>${fmt(x.extra)} h</td><td>${euro(x.aid)}</td><td>${euro(x.lod)}</td></tr>`).join('')+'</table></div>';
+}
+function renderResolvedDiff(){
+ if(!$('resolvedDiffStatus'))return;
+ const months=[...new Set(db.receipts.map(r=>r.month).filter(Boolean))].sort().reverse(),m=months[0],x=m?db.resolvedDiffs?.[m]:null;
+ $('resolvedDiffStatus').innerHTML=!m?'Sem recibos.':x?`✅ ${m} justificada: ${x.note||'sem nota'}`:`${m}: diferença ainda não marcada como justificada.`;
+}
+function renderAppState(){
+ if(!$('appStateBox'))return;
+ const bytes=new Blob([localStorage.getItem(KEY)||'']).size;
+ $('appStateBox').innerHTML=`<div class="statusList"><div class="statusLine"><span>Versão</span><strong>${APP_VERSION}</strong></div><div class="statusLine"><span>Folhas</span><strong>${db.sheets.length}</strong></div><div class="statusLine"><span>Recibos</span><strong>${db.receipts.length}</strong></div><div class="statusLine"><span>Despesas</span><strong>${db.expenses.length}</strong></div><div class="statusLine"><span>Dados locais</span><strong>${(bytes/1024).toFixed(1)} KB</strong></div><div class="statusLine"><span>Backups internos</span><strong>${safetyBackups().length}</strong></div></div>`;
+}
+function emergencyExport(){
+ const payload={version:APP_VERSION,exportedAt:new Date().toISOString(),data:db};
+ saveTextFile(`emergencia_controlo_horas_${today()}.json`,JSON.stringify(payload,null,2),'application/json');
+}
+function exportFullWorkbook(){
+ if(!window.XLSX){exportAnnualCsv();return}
+ const wb=XLSX.utils.book_new();
+ const add=(name,rows)=>XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rows.length?rows:[{Info:'Sem dados'}]),name.slice(0,31));
+ add('Folhas',db.sheets.map(s=>({Ficheiro:s.name,Inicio:s.dataInicial,Fim:s.dataFinal,Cliente:s.cliente,Local:s.local,H100:s.normal,H25:s.h25,H125:s.h125,H1375:s.h1375,H150:s.h150,H165:s.h165,DiasAjuda:s.diasAjuda,DiasAloj:s.diasAloj,Nota:s.note||''})));
+ add('Despesas',db.expenses.map(x=>({Data:x.date,Alimentacao:x.food,Dormida:x.sleep,Estacionamento:x.parking||0,Portagens:x.tolls||0,Combustivel:x.fuel||0,Transportes:x.transport||0,Outros:x.other||0,Nota:x.note||''})));
+ add('Recibos',db.receipts.map(r=>({Mes:r.month,Ficheiro:r.name,Tipo:r.kind,Total:r.total})));
+ add('FeriasComp',db.used.map(x=>({Inicio:x.date,Fim:x.endDate,Tipo:x.type,Dias:x.days,Nota:x.desc||''})));
+ add('Historico',db.auditLog.map(x=>({Data:x.at,Acao:x.action,Detalhe:x.detail})));
+ XLSX.writeFile(wb,`controlo_horas_completo_${today()}.xlsx`);
+}
+
 function renderDashboard(){const m=$('dashMonth').value||currentMonth(),p=salaryMonth(m),e=expenseSummary(m),extra=p.h25+p.h125+p.h1375+p.h150+p.h165,totalHours=p.normal+extra;const allExtra=db.sheets.reduce((a,s)=>a+num(s.h25)+num(s.h125)+num(s.h1375)+num(s.h150)+num(s.h165),0);$('dashNet').textContent=euro(num(p.net)>=300&&num(p.net)<=5000?num(p.net):0);$('dashH100').textContent=fmt(p.normal)+' h';$('dashH25').textContent=fmt(p.h25)+' h';$('dashH125').textContent=fmt(p.h125)+' h';$('dashH1375').textContent=fmt(p.h1375)+' h';$('dashH150').textContent=fmt(p.h150)+' h';$('dashH165').textContent=fmt(p.h165)+' h';$('dashExtra').textContent=fmt(extra)+' h';$('dashTotalHours').textContent=fmt(totalHours)+' h';$('dashExtraAll').textContent=fmt(allExtra)+' h';if($('dashExtraYear'))$('dashExtraYear').textContent=fmt(yearExtraHours(m.slice(0,4)))+' h';const mealCount=mealDays(m);$('dashMeal').textContent=`${euro(mealCount*db.settings.refeicaoDia)} (${mealCount} dias sem folha)`;$('dashTravel').textContent=euro(p.travel);$('dashLodging').textContent=euro(p.lodging);$('dashBalance').textContent=fmt(balance())+' dias';$('dashExpenseBalance').textContent=euro(e.remain);const w=monthStatus(m),closed=isClosed(m);$('monthStatus').className='statusBox '+(w.length?'status-warn':'status-ok');$('monthStatus').innerHTML=`<strong>${closed?'✅ Mês validado':'🟢 Mês aberto'}</strong>${w.length?' · Falta: '+w.join(', '):' · Registos completos'}`;renderMonthly();renderAnnual();renderAnomalies()}
 function renderMonthly(){
  let h='<tr><th>Mês</th><th>Salário base usado</th><th>Valor/hora usado</th><th>Líquido recibo</th><th>Horas a 100%</th><th>25%</th><th>125%</th><th>137,5%</th><th>150%</th><th>165%</th><th>Total extra</th><th>Total geral</th><th>Subs. refeição</th><th>Ajudas</th><th>Alojamento</th><th>Estado</th></tr>';
@@ -1044,7 +1172,7 @@ function renderAnnual(){
   </tr>`;
  }
  $('annualTable').innerHTML=h;
-}
+;renderTodayPanel();renderPendingCenter();renderDataHealth();renderAnnualVisual();renderAnnualTimeline();renderTravelMode()}
 
 let editingLodgingSheetId=null;
 function lodgingPossibleDates(s){
@@ -1184,6 +1312,8 @@ function renderPayments(){
 
  $('paymentsTable').innerHTML=h;
  renderAnnualCharts();
+
+ renderYearSelectors();
 }
 function latestSheetMonth(){
  const months=db.sheets.flatMap(s=>Array.isArray(s.entries)&&s.entries.length?s.entries.map(e=>monthOf(e.date)):[monthOf(s.dataFinal)]).filter(Boolean).sort();
@@ -1557,6 +1687,8 @@ function renderClients(){
 
  $('clientsTable').innerHTML=h;
  renderClientAnnualStats();
+
+ renderClientInsights();
 }
 
 let editingExpenseId=null;
@@ -2055,6 +2187,8 @@ function renderReceiptsTableOnly(){
  renderReceiptArchive();
 
  renderReceiptHint();
+
+ renderResolvedDiff();
 }
 
 function receiptMonthSummary(month){
@@ -2181,6 +2315,8 @@ function renderSettings(){
 
 
  renderAudit();renderBackupCenter();
+
+ renderAppState();
 }
 
 async function processSharedBackupOnLaunch(){
@@ -2442,6 +2578,23 @@ if($('testBackupsBtn'))$('testBackupsBtn').onclick=()=>{
  renderBackupCenter();
 };
 
+
+if($('healthCheckBtn'))$('healthCheckBtn').onclick=()=>{renderDataHealth();const h=dataHealthReport();message(h.ok?'Verificação concluída sem duplicados exatos ou sobreposições entre clientes.':`Verificação concluída: ${h.dup.length} duplicado(s), ${h.overlaps.length} sobreposição(ões) a confirmar.`,'ok')};
+if($('runSimulatorBtn'))$('runSimulatorBtn').onclick=runQuickSimulator;
+if($('compareYearsBtn'))$('compareYearsBtn').onclick=compareYears;
+if($('fullWorkbookBtn'))$('fullWorkbookBtn').onclick=exportFullWorkbook;
+if($('emergencyExportBtn'))$('emergencyExportBtn').onclick=emergencyExport;
+if($('snapshotBtn'))$('snapshotBtn').onclick=()=>{createSafetyBackup('Ponto de restauro manual');renderBackupCenter();renderAppState();message('Ponto de restauro criado.','ok')};
+if($('resolveDiffBtn'))$('resolveDiffBtn').onclick=()=>{
+ const months=[...new Set(db.receipts.map(r=>r.month).filter(Boolean))].sort().reverse(),m=months[0];if(!m)return;
+ const note=prompt(`Motivo/nota para justificar a diferença de ${m}:`,'');if(note===null)return;
+ db.resolvedDiffs??={};db.resolvedDiffs[m]={note,at:new Date().toISOString()};audit('Diferença de recibo justificada',`${m} · ${note}`,`${m}-01`);save();
+};
+if($('unresolveDiffBtn'))$('unresolveDiffBtn').onclick=()=>{
+ const months=[...new Set(db.receipts.map(r=>r.month).filter(Boolean))].sort().reverse(),m=months[0];if(!m||!db.resolvedDiffs?.[m])return;
+ delete db.resolvedDiffs[m];audit('Diferença de recibo reaberta',m,`${m}-01`);save();
+};
+
 if($('integrityCheckBtn'))$('integrityCheckBtn').onclick=()=>{
  const result=checkDataIntegrity();
  renderIntegrityResult(result);
@@ -2657,4 +2810,4 @@ $('globalSearch').oninput=()=>{
 let installPrompt=null;window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installPrompt=e;$('installBtn').hidden=false});$('installBtn').onclick=async()=>{if(installPrompt){installPrompt.prompt();await installPrompt.userChoice;installPrompt=null;$('installBtn').hidden=true}else alert('No iPhone: Partilhar → Adicionar ao ecrã principal.')};
 function connection(){if(navigator.onLine){$('connectionStatus').textContent='';$('connectionStatus').className=''}else{$('connectionStatus').textContent='📴 Sem internet: os dados continuam guardados neste dispositivo.';$('connectionStatus').className='offline'}}window.addEventListener('online',connection);window.addEventListener('offline',connection);
 fetch('locations.json').then(r=>r.json()).then(x=>{locations=x;const src=[...new Set(x.map(v=>v.source))].sort();$('locationSource').innerHTML='<option value="">Todas as entidades</option>'+src.map(s=>`<option>${s}</option>`).join('');renderLocations()}).catch(()=>{});
-for(const id of ['dashMonth','expenseMonth','receiptMonth'])$(id).value=currentMonth();if($('compareMonthA'))$('compareMonthA').value=currentMonth();if($('compareMonthB'))$('compareMonthB').value=previousMonth(currentMonth());$('clientMonth').value=latestSheetMonth();$('expenseDate').value=today();resetFoodItems();$('leaveStart').value=today();$('leaveEnd').value=today();connection();ensureVersionSafetyBackup();if(correctingMonth&&$('finishCorrectionBtn'))$('finishCorrectionBtn').hidden=false;render();processSharedBackupOnLaunch();
+for(const id of ['dashMonth','expenseMonth','receiptMonth'])$(id).value=currentMonth();if($('simSalary'))$('simSalary').value=salaryAt(currentMonth());if($('compareMonthA'))$('compareMonthA').value=currentMonth();if($('compareMonthB'))$('compareMonthB').value=previousMonth(currentMonth());$('clientMonth').value=latestSheetMonth();$('expenseDate').value=today();resetFoodItems();$('leaveStart').value=today();$('leaveEnd').value=today();connection();ensureVersionSafetyBackup();if(correctingMonth&&$('finishCorrectionBtn'))$('finishCorrectionBtn').hidden=false;render();processSharedBackupOnLaunch();

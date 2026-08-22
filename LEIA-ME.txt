@@ -654,3 +654,28 @@ SEGURANÇA:
 - As novas categorias de despesas valem 0 nos registos antigos.
 - As fórmulas salariais existentes não foram alteradas.
 - A v3.13.4 deve ser mantida como versão de recuperação.
+
+VERSÃO 3.15.0 — GRANDE ATUALIZAÇÃO
+Base preservada: v3.14.0.
+
+Acrescenta, sem alterar o motor salarial existente:
+- Painel Hoje.
+- Centro de pendências e alertas.
+- Saúde dos dados: duplicados, sobreposições e contagens.
+- Linha temporal anual.
+- Estatísticas anuais rápidas.
+- Modo deslocação com início/fim.
+- Simulador de salário/horas/deslocação.
+- Comparação entre anos.
+- Ficha/comparação de clientes.
+- Diferenças de recibos marcáveis como justificadas.
+- Exportação Excel completa.
+- Exportação de emergência JSON.
+- Estado da aplicação e ponto de restauro manual.
+- Mantém as melhorias da v3.14.0, incluindo filtros, calendário, previsões, relatórios, backups e histórico.
+
+SEGURANÇA:
+- A v3.14.0 não é modificada e deve ser guardada.
+- Chave de dados continua controloHorasV6.
+- Estruturas novas são aditivas e têm valores vazios por defeito.
+- Fórmulas existentes de salário, horas, ajudas e recibos não foram substituídas.

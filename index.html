@@ -10,7 +10,7 @@
   <link rel="apple-touch-icon" href="icon-192.png">
   <link rel="stylesheet" href="styles.css">
 </head>
-<body><div id="appVersion" style="position:fixed;right:6px;bottom:6px;z-index:9999;font-size:11px;background:#fff;border:1px solid #ccc;border-radius:6px;padding:3px 6px;opacity:.85">v3.14.0</div>
+<body><div id="appVersion" style="position:fixed;right:6px;bottom:6px;z-index:9999;font-size:11px;background:#fff;border:1px solid #ccc;border-radius:6px;padding:3px 6px;opacity:.85">v3.15.0</div>
 <header class="appHeader">
   <div class="brand">
     <img class="brandLogo" src="logotipo.png" alt="Logótipo">
@@ -125,7 +125,31 @@
     <div id="compareMonthsResult" class="tableWrap"></div>
   </div>
 
-  <h2>Resumo mensal</h2>
+  
+  <div class="megaGrid">
+    <article class="settingsBox"><h2>☀️ Hoje</h2><div id="todayPanel"></div></article>
+    <article class="settingsBox"><h2>📈 Ano em números</h2><div id="annualVisual"></div></article>
+  </div>
+  <div class="megaGrid">
+    <article class="settingsBox"><h2>🔔 Centro de pendências</h2><div id="pendingCenter"></div></article>
+    <article class="settingsBox"><h2>🩺 Saúde dos dados</h2><div id="dataHealth"></div><button id="healthCheckBtn" type="button">Verificar agora</button></article>
+  </div>
+  <div class="settingsBox"><h2>🗓️ Linha temporal anual</h2><div id="annualTimeline" class="timelineYear"></div></div>
+  <div class="megaGrid">
+    <article class="settingsBox"><h2>🧮 Simulador rápido</h2>
+      <div class="formGrid">
+        <label>Salário base (€)<input id="simSalary" type="number" step="0.01"></label>
+        <label>Horas extra<input id="simHours" type="number" step="0.5" value="0"></label>
+        <label>Percentagem<select id="simRate"><option value=".25">25%</option><option value="1.25">125%</option><option value="1.375">137,5%</option><option value="1.5">150%</option><option value="1.65">165%</option></select></label>
+        <label>Dias ajuda<input id="simAidDays" type="number" step="1" value="0"></label>
+        <label>Noites alojamento<input id="simLodgingDays" type="number" step="1" value="0"></label>
+        <label>Despesas previstas (€)<input id="simExpenses" type="number" step="0.01" value="0"></label>
+      </div><button id="runSimulatorBtn" type="button">Simular</button><div id="simulatorResult"></div>
+    </article>
+    <article class="settingsBox"><h2>🧳 Modo deslocação</h2><div id="travelModeBox"></div></article>
+  </div>
+
+<h2>Resumo mensal</h2>
   <div class="tableWrap"><table id="monthlyTable"></table></div>
   <h2>Resumo anual</h2>
   <div class="tableWrap"><table id="annualTable"></table></div>
@@ -213,6 +237,8 @@
   <div class="toolbar"><label>Ano <select id="clientYear"></select></label></div>
   <div class="tableWrap"><table id="clientAnnualTable"></table></div>
 
+
+  <h2>Ficha e comparação de clientes</h2><div id="clientInsights"></div>
 </section>
 
 <section id="despesas" class="panel">
@@ -300,7 +326,7 @@
     <label>Ficheiro<input id="receiptFile" type="file" accept=".pdf,image/*,.heic,.heif" required></label>
     <button>Guardar recibo</button>
   </form>
-  <div id="receiptProgress" class="hint"></div><h2>Recibos guardados</h2><div class="tableWrap"><table id="receiptsTable"></table></div><h2>Comparação automática</h2><div id="receiptComparison" class="tableWrap"></div><div id="receiptHintBox" class="statusBox"></div>
+  <div id="receiptProgress" class="hint"></div><h2>Recibos guardados</h2><div class="tableWrap"><table id="receiptsTable"></table></div><h2>Comparação automática</h2><div id="receiptComparison" class="tableWrap"></div><div id="receiptHintBox" class="statusBox"></div><div id="resolvedDiffBox" class="settingsBox"><h3>Diferença deste mês</h3><div id="resolvedDiffStatus"></div><button id="resolveDiffBtn" type="button">Marcar como justificada</button><button id="unresolveDiffBtn" type="button">Reabrir diferença</button></div>
 
   <h2>Arquivo anual de recibos</h2>
   <div class="toolbar"><label>Ano <select id="receiptArchiveYear"></select></label></div>
@@ -394,6 +420,9 @@
       <button type="button" id="testBackupsBtn">Verificar backups internos</button>
     </div>
 
+
+  <div class="settingsBox"><h3>⚙️ Estado da aplicação</h3><div id="appStateBox"></div>
+  <button id="snapshotBtn" type="button">Criar ponto de restauro agora</button></div>
 </section>
 </main>
 
@@ -402,17 +431,17 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
-<script src="app.js?v=3.14.0"></script>
+<script src="app.js?v=3.15.0"></script>
 <script>
 (async()=>{
  if(!('serviceWorker' in navigator) || !location.protocol.startsWith('http')) return;
  try{
-  const reg=await navigator.serviceWorker.register('sw.js?v=3.14.0',{updateViaCache:'none'});
+  const reg=await navigator.serviceWorker.register('sw.js?v=3.15.0',{updateViaCache:'none'});
   await reg.update();
   if(reg.waiting) reg.waiting.postMessage({type:'SKIP_WAITING'});
   navigator.serviceWorker.addEventListener('controllerchange',()=>{
-   if(!sessionStorage.getItem('reloaded-v3140')){
-    sessionStorage.setItem('reloaded-v3140','1');
+   if(!sessionStorage.getItem('reloaded-v3150')){
+    sessionStorage.setItem('reloaded-v3150','1');
     location.reload();
    }
   });
