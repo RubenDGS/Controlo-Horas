@@ -690,3 +690,14 @@ Base preservada: v3.15.0.
 - Não existe qualquer integração com Ocupação Técnica/SharePoint nesta versão.
 - Não altera folhas, recibos, despesas, salários ou fórmulas existentes.
 - A v3.15.0 deve permanecer guardada como versão de recuperação.
+
+
+VERSÃO 3.15.2 — QUILÓMETROS AUTOMÁTICOS (EXPERIMENTAL)
+- Nova área Quilómetros.
+- Origem padrão: Rua do Esteiro dos Barris, Lote 75, Parque Industrial da Mitrena, 2910-738 Setúbal.
+- Cliente + Local das folhas são usados para pesquisa online do destino.
+- Coordenadas e distância rodoviária ficam guardadas localmente.
+- Com ajuda/alojamento: uma ida + regresso por deslocação contínua.
+- Sem ajuda/alojamento: ida + regresso por cada dia registado na folha.
+- Destinos podem ser corrigidos manualmente, sem alterar a folha original.
+- Mantém todas as funções da v3.15.1 e a chave controloHorasV6.

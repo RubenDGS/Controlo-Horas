@@ -10,7 +10,7 @@
   <link rel="apple-touch-icon" href="icon-192.png">
   <link rel="stylesheet" href="styles.css">
 </head>
-<body><div id="appVersion" style="position:fixed;right:6px;bottom:6px;z-index:9999;font-size:11px;background:#fff;border:1px solid #ccc;border-radius:6px;padding:3px 6px;opacity:.85">v3.15.1</div>
+<body><div id="appVersion" style="position:fixed;right:6px;bottom:6px;z-index:9999;font-size:11px;background:#fff;border:1px solid #ccc;border-radius:6px;padding:3px 6px;opacity:.85">v3.15.2</div>
 <header class="appHeader">
   <div class="brand">
     <img class="brandLogo" src="logotipo.png" alt="Logótipo">
@@ -34,7 +34,7 @@
   <button class="tab" data-tab="clientes">Clientes</button>
   <button class="tab" data-tab="despesas">Despesas</button>
   <button class="tab" data-tab="compensacoes">Férias/Comp.</button>
-  <button class="tab" data-tab="locais">Locais</button>
+  <button class="tab" data-tab="locais">Locais</button><button class="tab" data-tab="quilometros">🚗 Quilómetros</button>
   <button class="tab" data-tab="recibos">Recibos</button>
   <button class="tab" data-tab="definicoes">Definições</button>
 </nav>
@@ -319,6 +319,15 @@
 
 </section>
 
+
+<section id="quilometros" class="panel">
+  <p class="note">Estimativa automática das deslocações a partir das folhas. A aplicação usa Cliente + Local para localizar o destino online e calcular a distância rodoviária. Podes corrigir qualquer destino sem alterar a folha original.</p>
+  <div class="settingsBox"><h2>📍 Origem</h2><div class="formGrid"><label>Morada da empresa<input id="companyAddress"></label><button type="button" id="saveCompanyAddressBtn">Guardar / localizar origem</button></div><div id="companyLocationStatus" class="statusBox"></div></div>
+  <div class="toolbar"><label>Ano <select id="kmYear"></select></label><button type="button" id="updateKmBtn">🔄 Atualizar localizações e distâncias</button></div>
+  <div class="cards"><article><span>Km totais no ano</span><strong id="kmYearTotal">0 km</strong></article><article><span>Clientes/localizações</span><strong id="kmLocationCount">0</strong></article><article><span>Deslocações com permanência</span><strong id="kmStayTrips">0</strong></article><article><span>Viagens diárias</span><strong id="kmDailyTrips">0</strong></article></div>
+  <h2>Resumo por cliente/local</h2><div class="tableWrap"><table id="kmSummaryTable"></table></div>
+  <h2>Locais por confirmar</h2><div id="kmUnresolved"></div>
+</section>
 <section id="recibos" class="panel">
   <p class="note">Aceita PDF, JPG, JPEG, PNG, WEBP, HEIC e HEIF. O ficheiro fica arquivado neste dispositivo. A aplicação lê automaticamente o total líquido e compara-o com o valor calculado pela aplicação.</p>
   <form id="receiptForm" class="formGrid">
@@ -442,17 +451,17 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
-<script src="app.js?v=3.15.1"></script>
+<script src="app.js?v=3.15.2"></script>
 <script>
 (async()=>{
  if(!('serviceWorker' in navigator) || !location.protocol.startsWith('http')) return;
  try{
-  const reg=await navigator.serviceWorker.register('sw.js?v=3.15.1',{updateViaCache:'none'});
+  const reg=await navigator.serviceWorker.register('sw.js?v=3.15.2',{updateViaCache:'none'});
   await reg.update();
   if(reg.waiting) reg.waiting.postMessage({type:'SKIP_WAITING'});
   navigator.serviceWorker.addEventListener('controllerchange',()=>{
-   if(!sessionStorage.getItem('reloaded-v3151')){
-    sessionStorage.setItem('reloaded-v3151','1');
+   if(!sessionStorage.getItem('reloaded-v3152')){
+    sessionStorage.setItem('reloaded-v3152','1');
     location.reload();
    }
   });
