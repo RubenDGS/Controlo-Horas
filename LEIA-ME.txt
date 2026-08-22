@@ -609,16 +609,11 @@ VERSÃO 3.13.2 — RECIBOS REPÔS + DESPESAS INCREMENTAIS
 - Despesas antigas continuam compatíveis e não são alteradas automaticamente.
 - Chave principal preservada: controloHorasV6.
 
-VERSÃO 3.13.3 — ALOJAMENTO MANUAL POR FOLHA / POR DIA
-- Base integral: v3.13.2.
-- A folha Excel original nunca é alterada.
-- Na área Folhas, quando existem dias de alojamento aparece “Editar alojamento”.
-- Dois modos:
-  1) mesmo valor para todos os dias da folha (ex.: 65 € ou 50 €);
-  2) detalhar por dia, permitindo valores diferentes na mesma folha.
-- O cálculo mensal/anual passa a usar o valor manual apenas naquela folha.
-- Folhas antigas permanecem exatamente com o valor que já tinham até serem editadas.
-- “Usar valor original” remove a alteração manual e volta ao valor guardado quando a folha foi importada.
-- É criado backup automático antes de cada alteração/reposição.
-- Meses validados continuam protegidos e não podem ser alterados sem desbloquear.
-- A chave principal de dados permanece: controloHorasV6.
+VERSÃO 3.13.4 — ALOJAMENTO MANUAL CORRIGIDO
+- Reconstruída diretamente sobre a v3.13.2, que estava estável.
+- Corrige o erro da v3.13.3 que removeu acidentalmente a função renderPayments.
+- Nenhuma folha é apagada ou migrada.
+- Mantém todas as funções da v3.13.2.
+- Permite editar alojamento por folha ou por dia sem alterar o Excel original.
+- Valores antigos permanecem iguais até serem editados manualmente.
+- A chave dos dados continua: controloHorasV6.
