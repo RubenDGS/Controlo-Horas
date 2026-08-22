@@ -10,7 +10,7 @@
   <link rel="apple-touch-icon" href="icon-192.png">
   <link rel="stylesheet" href="styles.css">
 </head>
-<body><div id="appVersion" style="position:fixed;right:6px;bottom:6px;z-index:9999;font-size:11px;background:#fff;border:1px solid #ccc;border-radius:6px;padding:3px 6px;opacity:.85">v3.13.4</div>
+<body><div id="appVersion" style="position:fixed;right:6px;bottom:6px;z-index:9999;font-size:11px;background:#fff;border:1px solid #ccc;border-radius:6px;padding:3px 6px;opacity:.85">v3.14.0</div>
 <header class="appHeader">
   <div class="brand">
     <img class="brandLogo" src="logotipo.png" alt="Logótipo">
@@ -44,7 +44,7 @@
 <section id="dashboard" class="panel active">
   <div class="toolbar dashboardTools">
     <label>Mês <input id="dashMonth" type="month"></label>
-    <input id="globalSearch" placeholder="Pesquisar cliente, local, mês, folha ou subestação">
+    <input id="globalSearch" placeholder="Pesquisar cliente, local, mês, folha, recibo ou despesa"><div id="globalSearchResults" class="searchResults"></div>
     <button id="printMonthBtn">🖨️ Exportar mês</button>
   </div>
   <div id="monthStatus" class="statusBox"></div>
@@ -69,7 +69,7 @@
   <div class="toolbar">
     <label class="fileBtn">Importar folhas Excel<input id="fileInput" type="file" accept=".xlsx,.xlsm" multiple></label>
     <button id="closeMonthBtn">✅ Validar mês</button>
-    <button id="reopenMonthBtn">🔓 Desbloquear mês</button>
+    <button id="reopenMonthBtn">🔓 Desbloquear mês</button><button id="correctMonthBtn">🛠️ Corrigir mês</button><button id="finishCorrectionBtn" hidden>✅ Terminar correção</button>
     <button id="restoreBtn">♻️ Restaurar backup completo</button>
     <input id="restoreInput" type="file" accept=".zip,.json,application/zip,application/json" hidden>
   </div>
@@ -81,6 +81,50 @@
     <div id="anomalyPanel" class="statusBox"></div>
   </div>
 
+  
+  <div class="megaGrid">
+    <article class="settingsBox">
+      <h2>📌 Resumo completo do mês</h2>
+      <div id="monthOnePage"></div>
+    </article>
+    <article class="settingsBox">
+      <h2>🚦 Estado do mês</h2>
+      <div id="monthChecklist"></div>
+    </article>
+  </div>
+
+  <div class="settingsBox">
+    <h2>📅 Calendário mensal</h2>
+    <div id="workCalendar" class="calendarGrid"></div>
+  </div>
+
+  <div class="megaGrid">
+    <article class="settingsBox">
+      <h2>🔮 Previsão do próximo recibo</h2>
+      <div id="nextReceiptForecast"></div>
+    </article>
+    <article class="settingsBox">
+      <h2>🧾 Raio-X do salário</h2>
+      <button type="button" id="salaryBreakdownBtn">Ver detalhe do cálculo</button>
+      <div id="salaryBreakdownResult"></div>
+    </article>
+  </div>
+
+  <div class="settingsBox">
+    <h2>🕒 O que mudou neste mês</h2>
+    <div id="monthChanges"></div>
+  </div>
+
+  <div class="settingsBox">
+    <h2>↔️ Comparar meses</h2>
+    <div class="toolbar">
+      <label>Mês A <input id="compareMonthA" type="month"></label>
+      <label>Mês B <input id="compareMonthB" type="month"></label>
+      <button type="button" id="compareMonthsBtn">Comparar</button>
+    </div>
+    <div id="compareMonthsResult" class="tableWrap"></div>
+  </div>
+
   <h2>Resumo mensal</h2>
   <div class="tableWrap"><table id="monthlyTable"></table></div>
   <h2>Resumo anual</h2>
@@ -88,10 +132,23 @@
 </section>
 
 <section id="folhas" class="panel"><p class="note">A aplicação só considera duplicada uma folha quando coincide o mesmo período/datas. O mesmo cliente/local em datas diferentes é permitido.</p>
-  <div class="toolbar"><input id="sheetSearch" placeholder="Pesquisar folha, cliente, local ou processo"></div>
+  <div class="toolbar">
+    <input id="sheetSearch" placeholder="Pesquisar folha, cliente, local ou processo">
+    <label>De <input id="sheetFrom" type="date"></label>
+    <label>Até <input id="sheetTo" type="date"></label>
+    <button type="button" id="clearSheetDatesBtn">Limpar datas</button>
+    <button type="button" id="exportAnnualXlsxBtn">📊 Exportar ano Excel</button>
+    <button type="button" id="exportAnnualCsvBtn">CSV</button>
+  </div>
   <div class="tableWrap"><table id="sheetsTable"></table></div>
 
-  <div id="lodgingModal" class="modal hidden">
+  
+  <h2>Resumo de deslocações</h2>
+  <div class="toolbar">
+    <label>Ano <select id="travelYear"></select></label>
+  </div>
+  <div class="tableWrap"><table id="travelSummaryTable"></table></div>
+<div id="lodgingModal" class="modal hidden">
     <div class="modalCard lodgingEditor">
       <h2>Editar alojamento</h2>
       <div id="lodgingSheetInfo" class="note"></div>
@@ -123,7 +180,7 @@
 
 <section id="recebimentos" class="panel">
   <p class="note">O líquido do recibo aparece separado das ajudas de custo, alojamento e subsídio de refeição.</p>
-  <div class="toolbar"><label>Ano <select id="payYear"></select></label><button type="button" id="annualPdfBtn">📄 Resumo anual PDF</button></div>
+  <div class="toolbar"><label>Ano <select id="payYear"></select></label><button type="button" id="annualPdfBtn">📄 Resumo anual PDF</button><button type="button" id="closeYearBtn">🔒 Fechar ano</button><button type="button" id="reopenYearBtn">🔓 Reabrir ano</button></div>
   <div class="cards">
     <article><span>Líquido dos recibos</span><strong id="yearNet">0,00 €</strong></article>
     <article><span>Ajudas de custo</span><strong id="yearTravel">0,00 €</strong></article>
@@ -174,6 +231,12 @@
     </div>
 
     <label>Dormida (€)<input id="expenseSleep" type="number" min="0" step="0.01" value="0"></label>
+    <label>Estacionamento (€)<input id="expenseParking" type="number" min="0" step="0.01" value="0"></label>
+    <label>Portagens (€)<input id="expenseTolls" type="number" min="0" step="0.01" value="0"></label>
+    <label>Combustível (€)<input id="expenseFuel" type="number" min="0" step="0.01" value="0"></label>
+    <label>Transportes (€)<input id="expenseTransport" type="number" min="0" step="0.01" value="0"></label>
+    <label>Outros (€)<input id="expenseOther" type="number" min="0" step="0.01" value="0"></label>
+    <label>Comprovativo/foto<input id="expenseReceiptFile" type="file" accept="image/*,.pdf"></label>
     <label>Observação<input id="expenseNote"></label>
     <button id="expenseSaveBtn">Guardar despesa</button>
   </form>
@@ -184,6 +247,7 @@
     <article><span>Gasto alimentação</span><strong id="expenseFoodSpent">0,00 €</strong></article>
     <article><span>Alojamento recebido</span><strong id="expenseLodgingReceived">0,00 €</strong></article>
     <article><span>Gasto dormida</span><strong id="expenseSleepSpent">0,00 €</strong></article>
+    <article><span>Outras despesas</span><strong id="expenseOtherSpent">0,00 €</strong></article>
     <article><span>Sobra total</span><strong id="expenseRemain">0,00 €</strong></article>
   </div>
   <div class="tableWrap"><table id="expensesTable"></table></div>
@@ -204,6 +268,16 @@
     <button>Registar</button>
   </form>
   <div class="tableWrap"><table id="leaveTable"></table></div>
+
+  <div class="cards">
+    <article><span>Saldo atual sem futuras marcações</span><strong id="leaveCurrentProjected">0 dias</strong></article>
+    <article><span>Dias futuros já marcados</span><strong id="leaveFutureDays">0 dias</strong></article>
+    <article><span>Saldo projetado</span><strong id="leaveProjectedBalance">0 dias</strong></article>
+  </div>
+  <h2>Calendário anual de férias/compensações</h2>
+  <div class="toolbar"><label>Ano <select id="leaveCalendarYear"></select></label></div>
+  <div id="leaveCalendar" class="leaveCalendarGrid"></div>
+
 </section>
 
 <section id="locais" class="panel">
@@ -212,6 +286,11 @@
     <select id="locationSource"><option value="">Todas as entidades</option></select>
   </div>
   <div id="locationResults" class="locationGrid"></div>
+
+  <h2>Locais/clientes visitados</h2>
+  <div class="toolbar"><label>Ano <select id="visitedYear"></select></label></div>
+  <div id="visitedLocations" class="locationGrid"></div>
+
 </section>
 
 <section id="recibos" class="panel">
@@ -221,7 +300,7 @@
     <label>Ficheiro<input id="receiptFile" type="file" accept=".pdf,image/*,.heic,.heif" required></label>
     <button>Guardar recibo</button>
   </form>
-  <div id="receiptProgress" class="hint"></div><h2>Recibos guardados</h2><div class="tableWrap"><table id="receiptsTable"></table></div><h2>Comparação automática</h2><div id="receiptComparison" class="tableWrap"></div>
+  <div id="receiptProgress" class="hint"></div><h2>Recibos guardados</h2><div class="tableWrap"><table id="receiptsTable"></table></div><h2>Comparação automática</h2><div id="receiptComparison" class="tableWrap"></div><div id="receiptHintBox" class="statusBox"></div>
 
   <h2>Arquivo anual de recibos</h2>
   <div class="toolbar"><label>Ano <select id="receiptArchiveYear"></select></label></div>
@@ -301,6 +380,20 @@
       <p class="note" id="yearReadyInfo"></p>
     </div>
 
+
+    <div class="settingsBox">
+      <h3>🧾 Histórico de alterações</h3>
+      <p class="note">Regista as alterações feitas a partir desta versão. Os registos anteriores não são inventados.</p>
+      <button type="button" id="clearAuditBtn">Limpar histórico</button>
+      <div class="tableWrap"><table id="auditTable"></table></div>
+    </div>
+
+    <div class="settingsBox">
+      <h3>🛡️ Centro de backups</h3>
+      <div id="backupCenterInfo" class="statusBox"></div>
+      <button type="button" id="testBackupsBtn">Verificar backups internos</button>
+    </div>
+
 </section>
 </main>
 
@@ -309,17 +402,17 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
-<script src="app.js?v=3.13.4"></script>
+<script src="app.js?v=3.14.0"></script>
 <script>
 (async()=>{
  if(!('serviceWorker' in navigator) || !location.protocol.startsWith('http')) return;
  try{
-  const reg=await navigator.serviceWorker.register('sw.js?v=3.13.4',{updateViaCache:'none'});
+  const reg=await navigator.serviceWorker.register('sw.js?v=3.14.0',{updateViaCache:'none'});
   await reg.update();
   if(reg.waiting) reg.waiting.postMessage({type:'SKIP_WAITING'});
   navigator.serviceWorker.addEventListener('controllerchange',()=>{
-   if(!sessionStorage.getItem('reloaded-v3134')){
-    sessionStorage.setItem('reloaded-v3134','1');
+   if(!sessionStorage.getItem('reloaded-v3140')){
+    sessionStorage.setItem('reloaded-v3140','1');
     location.reload();
    }
   });

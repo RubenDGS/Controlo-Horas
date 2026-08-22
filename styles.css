@@ -39,3 +39,25 @@
 .lodgingDayRow input{width:100%}
 .lodgingTotalLine{text-align:right;margin:14px 0;font-size:1.1rem}
 @media(max-width:600px){.lodgingDayRow{grid-template-columns:1fr 120px}}
+
+/* v3.14.0 - pacote completo */
+.megaGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;margin:14px 0}
+.calendarGrid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+.calendarCell{min-height:72px;border:1px solid #d8e5e9;border-radius:9px;padding:6px;background:#fff;font-size:.82rem}
+.calendarCell.empty{opacity:.25}
+.calendarCell .dayNum{font-weight:700;margin-bottom:3px}
+.calendarCell.work{background:#eef8fa}
+.calendarCell.leave{background:#fff6e8}
+.calendarCell.weekend{background:#f5f5f5}
+.leaveCalendarGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+.leaveMonthCard{border:1px solid #d8e5e9;border-radius:10px;padding:10px;background:#fff}
+.searchResults{position:relative;min-width:220px}
+.searchResultBox{position:absolute;z-index:20;background:#fff;border:1px solid #d8e5e9;border-radius:10px;padding:8px;min-width:280px;max-width:90vw;box-shadow:0 8px 24px rgba(0,0,0,.12)}
+.searchResultBox button{display:block;width:100%;text-align:left;margin:4px 0}
+.statusList{display:grid;gap:7px}
+.statusLine{display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid #e8eff1;padding:5px 0}
+.auditSmall{font-size:.82rem}
+@media(max-width:700px){
+ .calendarCell{min-height:58px;font-size:.72rem;padding:4px}
+ .megaGrid{grid-template-columns:1fr}
+}

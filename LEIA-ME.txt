@@ -617,3 +617,40 @@ VERSÃO 3.13.4 — ALOJAMENTO MANUAL CORRIGIDO
 - Permite editar alojamento por folha ou por dia sem alterar o Excel original.
 - Valores antigos permanecem iguais até serem editados manualmente.
 - A chave dos dados continua: controloHorasV6.
+
+VERSÃO 3.14.0 — PACOTE COMPLETO DE MELHORIAS
+Base de segurança preservada: v3.13.4.
+
+NOVAS FUNCIONALIDADES:
+- Editar ajuda de custo por folha.
+- Notas por folha.
+- Filtros de período nas folhas.
+- Exportação anual Excel e CSV.
+- Duplicar despesas diárias.
+- Categorias adicionais: estacionamento, portagens, combustível, transportes e outros.
+- Comprovativo/foto/PDF associado a despesas.
+- Histórico de alterações.
+- Pesquisa global melhorada.
+- Indicador detalhado de mês completo.
+- Modo “Corrigir mês” com revalidação no fim.
+- Calendário mensal de trabalho.
+- Resumo completo do mês numa página.
+- Resumo de deslocações e relatório PDF por deslocação.
+- Locais/clientes visitados com acesso a Maps/Waze quando há coordenadas.
+- Comparação entre dois meses.
+- Previsão do próximo recibo.
+- Raio-X do cálculo salarial.
+- Pistas para diferenças dos recibos.
+- Saldo de férias/compensações atual e projetado.
+- Calendário anual de férias/compensações.
+- Fecho/reabertura anual.
+- Centro de backups e verificação básica.
+- Backup automático antes de mudança de versão.
+- Gráficos, alertas, arquivo de recibos, simulador salarial e restantes funções anteriores preservados.
+
+SEGURANÇA:
+- Chave principal mantida: controloHorasV6.
+- Nenhuma folha, recibo, despesa ou histórico salarial existente é eliminado.
+- As novas categorias de despesas valem 0 nos registos antigos.
+- As fórmulas salariais existentes não foram alteradas.
+- A v3.13.4 deve ser mantida como versão de recuperação.
