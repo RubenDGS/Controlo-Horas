@@ -32,3 +32,13 @@
 @media(max-width:600px){
  .foodItemRow{grid-template-columns:1fr 110px auto}
 }
+
+
+/* v3.13.3 - editor de alojamento */
+.lodgingEditor{max-width:760px}
+.lodgingDayRow{display:grid;grid-template-columns:1fr 140px;gap:12px;align-items:center;padding:7px 0;border-bottom:1px solid #e5eef1}
+.lodgingDayRow input{width:100%}
+.lodgingTotalLine{text-align:right;margin:14px 0;font-size:1.1rem}
+@media(max-width:600px){
+ .lodgingDayRow{grid-template-columns:1fr 120px}
+}

@@ -324,6 +324,31 @@ function irs2026(R){
  return{value:v,effective:R?v/R:0};
 }
 function sheetsForMonth(m){return db.sheets.filter(s=>monthOf(s.dataFinal)===m||s.entries?.some(e=>monthOf(e.date)===m))}
+
+function lodgingDetailsTotal(s){
+ return Array.isArray(s?.alojDetails)
+   ?s.alojDetails.reduce((a,x)=>a+num(x?.amount),0)
+   :0;
+}
+function lodgingUnitForSheet(s){
+ const manual=num(s?.alojUnitManual);
+ if(manual>0)return manual;
+ const stored=num(s?.alojUnit);
+ if(stored>0)return stored;
+ return num(db.settings.alojDia);
+}
+function lodgingTotalForSheet(s){
+ if(Array.isArray(s?.alojDetails)&&s.alojDetails.length)return lodgingDetailsTotal(s);
+ return num(s?.diasAloj)*lodgingUnitForSheet(s);
+}
+function lodgingModeLabel(s){
+ if(Array.isArray(s?.alojDetails)&&s.alojDetails.length){
+  return `${euro(lodgingDetailsTotal(s))} (detalhado)`;
+ }
+ const days=num(s?.diasAloj),unit=lodgingUnitForSheet(s);
+ return days>0?`${fmt(days)} × ${euro(unit)} = ${euro(days*unit)}`:'0 dias';
+}
+
 function monthGroup(m){
  const g={normal:0,h25:0,h125:0,h1375:0,h150:0,h165:0,travelDays:0,lodgingDays:0,travel:0,lodging:0,comp:0};
 
@@ -341,7 +366,7 @@ function monthGroup(m){
   g.travelDays+=num(s.diasAjuda);
   g.lodgingDays+=num(s.diasAloj);
   g.travel+=num(s.diasAjuda)*num(s.ajudaUnit||db.settings.ajudaDia);
-  g.lodging+=num(s.diasAloj)*num(s.alojUnit||db.settings.alojDia);
+  g.lodging+=lodgingTotalForSheet(s);
   g.comp+=num(s.compConta);
  }
 
@@ -690,46 +715,108 @@ function renderAnnual(){
  }
  $('annualTable').innerHTML=h;
 }
-function renderSheets(){const q=norm($('sheetSearch').value);let h='<tr><th>Ficheiro</th><th>Período</th><th>Cliente</th><th>Local</th><th>100%</th><th>Extra</th><th>Ajudas</th><th>Aloj.</th><th></th></tr>';for(const s of [...db.sheets].sort((a,b)=>b.dataFinal.localeCompare(a.dataFinal))){if(q&&!norm(`${s.name} ${s.cliente} ${s.local} ${s.processo}`).includes(q))continue;const ex=num(s.h25)+num(s.h125)+num(s.h1375)+num(s.h150)+num(s.h165);h+=`<tr><td>${s.name}</td><td>${s.dataInicial}<br>${s.dataFinal}</td><td>${s.cliente}</td><td>${s.local}</td><td>${fmt(s.normal)} h</td><td>${fmt(ex)} h</td><td>${fmt(s.diasAjuda)} dias</td><td>${fmt(s.diasAloj)} dias</td><td>${s.originalKey?`<button onclick="openStoredSheet('${s.originalKey}','${String(s.name).replace(/'/g,"&#39;")}')">Abrir</button> `:''}<button onclick="removeSheet('${s.id}')">Apagar</button></td></tr>`}$('sheetsTable').innerHTML=h}
-function renderPayments(){
- const years=[...new Set(allMonths().map(m=>m.slice(0,4)))].sort().reverse(),
- sel=$('payYear').value||years[0]||String(new Date().getFullYear());
- $('payYear').innerHTML=years.map(y=>`<option ${y===sel?'selected':''}>${y}</option>`).join('');
 
- let sums={net:0,travel:0,lodging:0,meal:0,saved:0},
- h='<tr><th>Mês</th><th>Bruto</th><th>SS</th><th>IRS</th><th>Líquido recibo</th><th>Ajudas</th><th>Alojamento</th><th>Subs. refeição</th><th>Recibo</th></tr>';
+let editingLodgingSheetId=null;
 
- const months=allMonths().filter(x=>x.startsWith(sel)).reverse();
- for(const m of months){
-  const p=salaryMonth(m),receipt=db.receipts.find(r=>r.month===m);
-  sums.net+=p.net;sums.travel+=p.travel;sums.lodging+=p.lodging;sums.meal+=mealDays(m)*db.settings.refeicaoDia;
+function lodgingPossibleDates(s){
+ const dates=(Array.isArray(s?.entries)?s.entries.map(e=>e?.date).filter(Boolean):[]);
+ if(dates.length)return [...new Set(dates)].sort();
 
-  // A poupança anual conta apenas meses onde foram efetivamente inseridas despesas.
-  if(db.expenses.some(x=>monthOf(x.date)===m)){
-   sums.saved+=expenseSummary(m).remain;
+ const out=[];
+ if(s?.dataInicial&&s?.dataFinal){
+  for(let d=new Date(s.dataInicial+'T12:00:00'),end=new Date(s.dataFinal+'T12:00:00');d<=end;d.setDate(d.getDate()+1)){
+   out.push(isoLocal(d));
   }
+ }
+ return out;
+}
 
-  h+=`<tr><td>${m}</td><td>${euro(p.gross)}</td><td>- ${euro(p.ss)}</td><td>- ${euro(p.irs)}</td><td><strong>${euro(p.net)}</strong></td><td>${euro(p.travel)}</td><td>${euro(p.lodging)}</td><td>${euro(mealDays(m)*db.settings.refeicaoDia)}</td><td>${receipt?'✅':'⚠️ falta'}</td></tr>`;
+function renderLodgingEditor(){
+ const s=db.sheets.find(x=>x.id===editingLodgingSheetId);
+ if(!s)return;
+
+ const mode=$('lodgingMode').value;
+ $('lodgingUnitWrap').classList.toggle('hidden',mode!=='uniform');
+ $('lodgingDetailBox').classList.toggle('hidden',mode!=='detail');
+
+ if(mode==='detail'){
+  const existing=new Map((Array.isArray(s.alojDetails)?s.alojDetails:[]).map(x=>[x.date,num(x.amount)]));
+  const dates=lodgingPossibleDates(s);
+  if(!$('lodgingDayRows').dataset.ready){
+   $('lodgingDayRows').innerHTML=dates.map(date=>`
+     <div class="lodgingDayRow">
+       <span>${date}</span>
+       <input type="number" min="0" step="0.01" data-date="${date}" value="${existing.has(date)?existing.get(date):''}" placeholder="0,00">
+     </div>`).join('');
+   $('lodgingDayRows').dataset.ready='1';
+   $('lodgingDayRows').querySelectorAll('input').forEach(el=>el.oninput=updateLodgingEditTotal);
+  }
  }
 
- $('yearNet').textContent=euro(sums.net);
- $('yearTravel').textContent=euro(sums.travel);
- $('yearLodging').textContent=euro(sums.lodging);
- $('yearMeal').textContent=euro(sums.meal);
- $('yearSaved').textContent=euro(sums.saved);
+ updateLodgingEditTotal();
+}
 
- const expenseMonths=[...new Set(db.expenses.map(x=>monthOf(x.date)).filter(m=>m&&m.startsWith(sel)))].sort();
- if(expenseMonths.length){
-  const first=expenseMonths[0];
-  const [y,mo]=first.split('-');
-  const label=new Intl.DateTimeFormat('pt-PT',{month:'short',year:'numeric'}).format(new Date(+y,+mo-1,1));
-  $('yearSavedLabel').textContent=`Total poupado nas despesas (desde ${label})`;
+function updateLodgingEditTotal(){
+ const s=db.sheets.find(x=>x.id===editingLodgingSheetId);
+ if(!s||!$('lodgingEditTotal'))return;
+ let total=0;
+
+ if($('lodgingMode').value==='detail'){
+  total=[...$('lodgingDayRows').querySelectorAll('input')]
+    .reduce((a,el)=>a+num(el.value),0);
  }else{
-  $('yearSavedLabel').textContent='Total poupado nas despesas';
+  total=num(s.diasAloj)*num($('lodgingUnitValue').value);
+ }
+ $('lodgingEditTotal').textContent=euro(total);
+}
+
+window.editLodging=function(id){
+ const s=db.sheets.find(x=>x.id===id);
+ if(!s)return;
+ if(isClosed(monthOf(s.dataFinal||s.dataInicial))){
+  alert('Este mês está validado. Desbloqueia-o antes de alterar o alojamento.');
+  return;
  }
 
- $('paymentsTable').innerHTML=h;
- renderAnnualCharts();
+ editingLodgingSheetId=id;
+ $('lodgingSheetInfo').innerHTML=`<strong>${s.cliente||'Sem cliente'} · ${s.local||'Sem local'}</strong><br>${s.dataInicial} a ${s.dataFinal} · ${fmt(s.diasAloj)} dia(s) de alojamento`;
+
+ const detailMode=Array.isArray(s.alojDetails)&&s.alojDetails.length;
+ $('lodgingMode').value=detailMode?'detail':'uniform';
+ $('lodgingUnitValue').value=lodgingUnitForSheet(s);
+ $('lodgingDayRows').innerHTML='';
+ delete $('lodgingDayRows').dataset.ready;
+
+ $('lodgingModal').classList.remove('hidden');
+ renderLodgingEditor();
+};
+
+function closeLodgingEditor(){
+ editingLodgingSheetId=null;
+ $('lodgingModal').classList.add('hidden');
+ $('lodgingDayRows').innerHTML='';
+ delete $('lodgingDayRows').dataset.ready;
+}
+
+function renderSheets(){
+ const q=norm($('sheetSearch').value);
+ let h='<tr><th>Ficheiro</th><th>Período</th><th>Cliente</th><th>Local</th><th>100%</th><th>Extra</th><th>Ajudas</th><th>Alojamento</th><th></th></tr>';
+ for(const s of [...db.sheets].sort((a,b)=>b.dataFinal.localeCompare(a.dataFinal))){
+  if(q&&!norm(`${s.name} ${s.cliente} ${s.local} ${s.processo}`).includes(q))continue;
+  const ex=num(s.h25)+num(s.h125)+num(s.h1375)+num(s.h150)+num(s.h165);
+  h+=`<tr>
+   <td>${s.name}</td>
+   <td>${s.dataInicial}<br>${s.dataFinal}</td>
+   <td>${s.cliente}</td>
+   <td>${s.local}</td>
+   <td>${fmt(s.normal)} h</td>
+   <td>${fmt(ex)} h</td>
+   <td>${fmt(s.diasAjuda)} dias</td>
+   <td>${lodgingModeLabel(s)}<br>${num(s.diasAloj)>0?`<button type="button" onclick="editLodging('${s.id}')">Editar alojamento</button>`:''}</td>
+   <td>${s.originalKey?`<button onclick="openStoredSheet('${s.originalKey}','${String(s.name).replace(/'/g,"&#39;")}')">Abrir</button> `:''}<button onclick="removeSheet('${s.id}')">Apagar</button></td>
+  </tr>`;
+ }
+ $('sheetsTable').innerHTML=h;
 }
 function latestSheetMonth(){
  const months=db.sheets.flatMap(s=>Array.isArray(s.entries)&&s.entries.length?s.entries.map(e=>monthOf(e.date)):[monthOf(s.dataFinal)]).filter(Boolean).sort();
@@ -1875,6 +1962,60 @@ $('settingsForm').onsubmit=e=>{
 
 
 
+
+
+if($('lodgingMode'))$('lodgingMode').onchange=()=>{
+ $('lodgingDayRows').innerHTML='';
+ delete $('lodgingDayRows').dataset.ready;
+ renderLodgingEditor();
+};
+if($('lodgingUnitValue'))$('lodgingUnitValue').oninput=updateLodgingEditTotal;
+if($('cancelLodgingBtn'))$('cancelLodgingBtn').onclick=closeLodgingEditor;
+
+if($('saveLodgingBtn'))$('saveLodgingBtn').onclick=()=>{
+ const s=db.sheets.find(x=>x.id===editingLodgingSheetId);
+ if(!s)return;
+
+ createSafetyBackup('Antes de alterar alojamento');
+
+ if($('lodgingMode').value==='detail'){
+  const details=[...$('lodgingDayRows').querySelectorAll('input')]
+   .map(el=>({date:el.dataset.date,amount:num(el.value)}))
+   .filter(x=>x.amount>0);
+
+  if(details.length>num(s.diasAloj)){
+   alert(`Esta folha indica ${fmt(s.diasAloj)} dia(s) de alojamento. Tens ${details.length} dias preenchidos.`);
+   return;
+  }
+
+  s.alojDetails=details;
+  delete s.alojUnitManual;
+ }else{
+  const unit=num($('lodgingUnitValue').value);
+  if(unit<=0){alert('Indica um valor de alojamento válido.');return}
+  s.alojUnitManual=unit;
+  delete s.alojDetails;
+ }
+
+ localStorage.setItem(KEY,JSON.stringify(db));
+ closeLodgingEditor();
+ render();
+ message('Valor do alojamento atualizado apenas nesta folha. O ficheiro original não foi alterado.','ok');
+};
+
+if($('resetLodgingBtn'))$('resetLodgingBtn').onclick=()=>{
+ const s=db.sheets.find(x=>x.id===editingLodgingSheetId);
+ if(!s)return;
+ if(!confirm('Voltar a usar o valor original desta folha?'))return;
+
+ createSafetyBackup('Antes de repor alojamento original');
+ delete s.alojUnitManual;
+ delete s.alojDetails;
+ localStorage.setItem(KEY,JSON.stringify(db));
+ closeLodgingEditor();
+ render();
+ message('Alojamento reposto para o valor original da folha.','ok');
+};
 
 if($('addFoodItemBtn'))$('addFoodItemBtn').onclick=()=>addFoodItemRow('','');
 
