@@ -691,13 +691,16 @@ Base preservada: v3.15.0.
 - Não altera folhas, recibos, despesas, salários ou fórmulas existentes.
 - A v3.15.0 deve permanecer guardada como versão de recuperação.
 
-
-VERSÃO 3.15.2 — QUILÓMETROS AUTOMÁTICOS (EXPERIMENTAL)
-- Nova área Quilómetros.
-- Origem padrão: Rua do Esteiro dos Barris, Lote 75, Parque Industrial da Mitrena, 2910-738 Setúbal.
-- Cliente + Local das folhas são usados para pesquisa online do destino.
-- Coordenadas e distância rodoviária ficam guardadas localmente.
-- Com ajuda/alojamento: uma ida + regresso por deslocação contínua.
-- Sem ajuda/alojamento: ida + regresso por cada dia registado na folha.
-- Destinos podem ser corrigidos manualmente, sem alterar a folha original.
-- Mantém todas as funções da v3.15.1 e a chave controloHorasV6.
+VERSÃO 3.15.3 — QUILÓMETROS CORRIGIDOS
+- Reconstruída diretamente sobre a v3.15.1 estável.
+- A v3.15.2 mostrava 0 km quando os serviços online falhavam e escondia o erro.
+- Agora mostra imediatamente quantas folhas e quantos Cliente+Local foram detetados, mesmo antes de calcular coordenadas.
+- Tenta dois serviços de geocodificação online.
+- Deixa de esconder falhas: mostra mensagem quando coordenadas ou rota não são obtidas.
+- Cada cliente/local tem botão Calcular e botão Manual.
+- O modo Manual permite inserir a distância de ida caso a pesquisa online esteja bloqueada no dispositivo.
+- Mantém as regras:
+  com ajuda/alojamento = ida + regresso por deslocação;
+  sem ajuda/alojamento = ida + regresso por cada dia da folha.
+- Não altera folhas originais, recibos ou cálculos salariais.
+- Chave principal: controloHorasV6.

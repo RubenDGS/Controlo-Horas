@@ -72,6 +72,6 @@
 .calendarCell.holiday{background:#fff1f1;border:1px solid #d99;font-weight:600}
 .calendarCell.holiday .holidayName{font-size:.72rem;font-weight:700;margin-bottom:3px}
 
-/* v3.15.2 */
+/* v3.15.3 - km corrigidos */
 #kmSummaryTable button{white-space:nowrap}
-#quilometros .statusBox{margin-top:8px}
+#kmDiagnostic{margin:10px 0}

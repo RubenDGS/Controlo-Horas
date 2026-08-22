@@ -116,7 +116,7 @@ function today(){return new Date().toISOString().slice(0,10)}
 function currentMonth(){return today().slice(0,7)}
 function isClosed(m){return db.closedMonths.includes(m)||(Array.isArray(db.closedYears)&&db.closedYears.includes(String(m||'').slice(0,4)))}
 
-const APP_VERSION='3.15.2';
+const APP_VERSION='3.15.3';
 const VERSION_KEY='controloHorasV6AppVersion';
 let correctingMonth=sessionStorage.getItem('controloHorasCorrectionMonth')||'';
 
@@ -1165,18 +1165,116 @@ function exportFullWorkbook(){
 
 
 function travelLocationKey(client,local){return norm(`${client||''}|||${local||''}`)}
-function travelLocationRecord(client,local){db.travelLocations??={};return db.travelLocations[travelLocationKey(client,local)]||null}
-function setTravelLocationRecord(client,local,record){db.travelLocations??={};db.travelLocations[travelLocationKey(client,local)]={client,local,...record,updatedAt:new Date().toISOString()};localStorage.setItem(KEY,JSON.stringify(db))}
-async function geocodePhoton(query){const r=await fetch(`https://photon.komoot.io/api/?limit=5&q=${encodeURIComponent(query)}`,{headers:{Accept:'application/json'}});if(!r.ok)throw new Error('Falha na pesquisa de localização.');const d=await r.json();return(d.features||[]).map(f=>({lat:num(f.geometry?.coordinates?.[1]),lon:num(f.geometry?.coordinates?.[0]),name:[f.properties?.name,f.properties?.street,f.properties?.city,f.properties?.county,f.properties?.state,f.properties?.country].filter(Boolean).join(', ')})).filter(x=>x.lat&&x.lon)}
-async function routeKm(aLat,aLon,bLat,bLon){const r=await fetch(`https://router.project-osrm.org/route/v1/driving/${aLon},${aLat};${bLon},${bLat}?overview=false&alternatives=false&steps=false`);if(!r.ok)throw new Error('Falha no cálculo da distância.');const d=await r.json(),m=d.routes?.[0]?.distance;if(!Number.isFinite(m))throw new Error('Distância não encontrada.');return Math.round(m/100)/10}
-async function ensureCompanyCoords(force=false){if(!force&&num(db.settings.empresaLat)&&num(db.settings.empresaLon))return{lat:num(db.settings.empresaLat),lon:num(db.settings.empresaLon)};const q=db.settings.empresaMorada;const r=await geocodePhoton(`${q}, Portugal`);if(!r.length)throw new Error('Não foi possível localizar a morada da empresa.');db.settings.empresaLat=r[0].lat;db.settings.empresaLon=r[0].lon;localStorage.setItem(KEY,JSON.stringify(db));return r[0]}
-async function locateClientLocal(client,local,force=false){const old=travelLocationRecord(client,local);if(old?.lat&&old?.lon&&!force)return old;for(const q of [`${client||''} ${local||''}, Portugal`,`${local||''}, Portugal`,`${client||''}, Portugal`]){if(!q.trim())continue;try{const r=await geocodePhoton(q);if(r.length){setTravelLocationRecord(client,local,{lat:r[0].lat,lon:r[0].lon,label:r[0].name,status:'auto'});return travelLocationRecord(client,local)}}catch{}}setTravelLocationRecord(client,local,{status:'unresolved'});return null}
-function sheetWorkDays(s){if(Array.isArray(s?.entries)&&s.entries.length)return[...new Set(s.entries.map(e=>e.date).filter(Boolean))];const out=[];if(s?.dataInicial&&s?.dataFinal){for(let d=new Date(s.dataInicial+'T12:00:00'),e=new Date(s.dataFinal+'T12:00:00');d<=e;d.setDate(d.getDate()+1))if(d.getDay()!==0&&d.getDay()!==6)out.push(isoLocal(d))}return out}
-function kmTravelGroups(year=''){return travelGroups(year).map(g=>({...g,stay:g.sheets.some(s=>num(s.diasAjuda)>0||num(s.diasAloj)>0),workDays:[...new Set(g.sheets.flatMap(sheetWorkDays))]}))}
-function kmGroupDistance(g){const rec=travelLocationRecord(g.client,g.local),one=num(rec?.distanceKm);if(!one)return{km:0,dailyTrips:0,stayTrips:0};if(g.stay)return{km:one*2,dailyTrips:0,stayTrips:1};return{km:one*2*g.workDays.length,dailyTrips:g.workDays.length,stayTrips:0}}
-async function refreshKmData(){const y=$('kmYear')?.value||String(new Date().getFullYear()),origin=await ensureCompanyCoords(false),groups=kmTravelGroups(y);let n=0;for(const g of groups){const rec=await locateClientLocal(g.client,g.local,false);if(rec?.lat&&rec?.lon&&!num(rec.distanceKm)){try{rec.distanceKm=await routeKm(origin.lat,origin.lon,rec.lat,rec.lon);setTravelLocationRecord(g.client,g.local,rec)}catch{}}if(++n%3===0)await new Promise(r=>setTimeout(r,200))}renderKm()}
-function renderKm(){if(!$('kmSummaryTable'))return;const years=[...new Set(db.sheets.map(s=>String(s.dataFinal||s.dataInicial||'').slice(0,4)).filter(Boolean))].sort().reverse(),y=$('kmYear').value||years[0]||String(new Date().getFullYear());$('kmYear').innerHTML=(years.length?years:[y]).map(v=>`<option ${v===y?'selected':''}>${v}</option>`).join('');$('companyAddress').value=db.settings.empresaMorada||'';const ho=num(db.settings.empresaLat)&&num(db.settings.empresaLon);$('companyLocationStatus').innerHTML=ho?`✅ Origem localizada: ${db.settings.empresaMorada}`:'⚠️ Origem ainda não localizada.';const groups=kmTravelGroups(y),agg={};let total=0,daily=0,stay=0;for(const g of groups){const rec=travelLocationRecord(g.client,g.local),d=kmGroupDistance(g),k=travelLocationKey(g.client,g.local);agg[k]??={client:g.client,local:g.local,km:0,oneWay:num(rec?.distanceKm),dailyTrips:0,stayTrips:0,label:rec?.label||''};agg[k].km+=d.km;agg[k].dailyTrips+=d.dailyTrips;agg[k].stayTrips+=d.stayTrips;total+=d.km;daily+=d.dailyTrips;stay+=d.stayTrips}const rows=Object.values(agg).sort((a,b)=>b.km-a.km);let h='<tr><th>Cliente</th><th>Local</th><th>Destino identificado</th><th>Distância ida</th><th>Regra aplicada</th><th>Km total</th><th></th></tr>';for(const x of rows){const rule=x.stayTrips&&x.dailyTrips?`${x.stayTrips} permanência + ${x.dailyTrips} dias ida/volta`:x.stayTrips?`${x.stayTrips} ida+regresso`:`${x.dailyTrips} dias ida+volta`;h+=`<tr><td>${x.client}</td><td>${x.local}</td><td>${x.label||'Por localizar'}</td><td>${x.oneWay?fmt(x.oneWay)+' km':'—'}</td><td>${rule}</td><td><strong>${fmt(x.km)} km</strong></td><td><button onclick="correctTravelLocation('${encodeURIComponent(x.client)}','${encodeURIComponent(x.local)}')">Corrigir local</button></td></tr>`}if(!rows.length)h+='<tr><td colspan="7">Sem folhas neste ano.</td></tr>';$('kmSummaryTable').innerHTML=h;$('kmYearTotal').textContent=fmt(total)+' km';$('kmLocationCount').textContent=String(rows.length);$('kmStayTrips').textContent=String(stay);$('kmDailyTrips').textContent=String(daily);const unresolved=rows.filter(x=>!x.oneWay);$('kmUnresolved').innerHTML=unresolved.length?`<p class="note">${unresolved.length} local(is) ainda precisam de ser identificados.</p>`:'<p>✅ Todos os locais deste ano têm distância calculada.</p>'}
-window.correctTravelLocation=async function(c,l){const client=decodeURIComponent(c),local=decodeURIComponent(l),q=prompt('Pesquisa para este destino:',`${client} ${local}, Portugal`);if(q===null)return;let r;try{r=await geocodePhoton(q)}catch(e){alert(e.message);return}if(!r.length){alert('Não encontrei resultados.');return}const opts=r.slice(0,5).map((x,i)=>`${i+1}. ${x.name}\n${x.lat.toFixed(5)}, ${x.lon.toFixed(5)}`).join('\n\n'),p=prompt(`Escolhe 1-${Math.min(5,r.length)}:\n\n${opts}`,'1');if(p===null)return;const x=r[Number(p)-1];if(!x)return alert('Opção inválida.');const o=await ensureCompanyCoords(false),distanceKm=await routeKm(o.lat,o.lon,x.lat,x.lon);setTravelLocationRecord(client,local,{lat:x.lat,lon:x.lon,label:x.name,status:'manual',distanceKm});audit('Local de deslocação confirmado',`${client} · ${local} → ${x.name}`);renderKm()}
+function getTravelLoc(client,local){db.travelLocations??={};return db.travelLocations[travelLocationKey(client,local)]||null}
+function saveTravelLoc(client,local,x){db.travelLocations??={};db.travelLocations[travelLocationKey(client,local)]={client,local,...x,updatedAt:new Date().toISOString()};localStorage.setItem(KEY,JSON.stringify(db))}
+function sheetDaysForKm(s){
+ if(Array.isArray(s?.entries)&&s.entries.length)return [...new Set(s.entries.map(e=>e.date).filter(Boolean))];
+ const out=[];if(s?.dataInicial&&s?.dataFinal){
+  for(let d=new Date(s.dataInicial+'T12:00:00'),e=new Date(s.dataFinal+'T12:00:00');d<=e;d.setDate(d.getDate()+1)){
+   if(d.getDay()!==0&&d.getDay()!==6)out.push(isoLocal(d));
+  }
+ }return out;
+}
+function kmRowsForYear(year){
+ const rows=[...db.sheets].filter(s=>String(s.dataFinal||s.dataInicial||'').startsWith(year));
+ const map={};
+ for(const s of rows){
+  const key=travelLocationKey(s.cliente,s.local);
+  map[key]??={client:s.cliente||'Sem cliente',local:s.local||'Sem local',sheets:[],dailyDays:new Set(),stayTrips:0};
+  const g=map[key];g.sheets.push(s);
+  if(num(s.diasAjuda)>0||num(s.diasAloj)>0)g.stayTrips+=1;
+  else sheetDaysForKm(s).forEach(d=>g.dailyDays.add(d));
+ }
+ return Object.values(map).map(g=>({...g,dailyDays:[...g.dailyDays]}));
+}
+async function geocodeOnline(q){
+ const attempts=[
+  async()=>{const r=await fetch(`https://photon.komoot.io/api/?limit=5&q=${encodeURIComponent(q)}`);if(!r.ok)throw 0;const d=await r.json();return(d.features||[]).map(f=>({lat:num(f.geometry?.coordinates?.[1]),lon:num(f.geometry?.coordinates?.[0]),label:[f.properties?.name,f.properties?.city,f.properties?.county,f.properties?.country].filter(Boolean).join(', ')})).filter(x=>x.lat&&x.lon)},
+  async()=>{const r=await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&countrycodes=pt&q=${encodeURIComponent(q)}`,{headers:{'Accept':'application/json','Accept-Language':'pt'}});if(!r.ok)throw 0;const d=await r.json();return(d||[]).map(x=>({lat:num(x.lat),lon:num(x.lon),label:x.display_name||q})).filter(x=>x.lat&&x.lon)}
+ ];
+ let lastErr=null;
+ for(const fn of attempts){try{const x=await fn();if(x.length)return x}catch(e){lastErr=e}}
+ throw new Error('A pesquisa online de coordenadas não respondeu neste dispositivo.');
+}
+async function roadKm(aLat,aLon,bLat,bLon){
+ const r=await fetch(`https://router.project-osrm.org/route/v1/driving/${aLon},${aLat};${bLon},${bLat}?overview=false`);
+ if(!r.ok)throw new Error('O serviço de distância rodoviária não respondeu.');
+ const d=await r.json(),meters=d.routes?.[0]?.distance;
+ if(!Number.isFinite(meters))throw new Error('Não foi possível calcular a rota.');
+ return Math.round(meters/100)/10;
+}
+async function ensureOrigin(){
+ if(num(db.settings.empresaLat)&&num(db.settings.empresaLon))return {lat:num(db.settings.empresaLat),lon:num(db.settings.empresaLon)};
+ const r=await geocodeOnline(`${db.settings.empresaMorada}, Portugal`);
+ if(!r.length)throw new Error('Origem não localizada.');
+ db.settings.empresaLat=r[0].lat;db.settings.empresaLon=r[0].lon;localStorage.setItem(KEY,JSON.stringify(db));
+ return r[0];
+}
+async function calculateOneKm(client,local,force=false){
+ const old=getTravelLoc(client,local);
+ if(old?.distanceKm&&!force)return old;
+ const origin=await ensureOrigin();
+ let rec=old;
+ if(!rec?.lat||!rec?.lon||force){
+  const q=`${client||''} ${local||''}, Portugal`.trim();
+  const results=await geocodeOnline(q);
+  if(!results.length)throw new Error(`Não encontrei ${client} ${local}.`);
+  rec={lat:results[0].lat,lon:results[0].lon,label:results[0].label,status:'auto'};
+ }
+ rec.distanceKm=await roadKm(origin.lat,origin.lon,rec.lat,rec.lon);
+ saveTravelLoc(client,local,rec);return getTravelLoc(client,local);
+}
+function kmTotalsForGroup(g){
+ const rec=getTravelLoc(g.client,g.local),one=num(rec?.distanceKm);
+ const dailyTrips=g.dailyDays.length,stayTrips=g.stayTrips;
+ return {one,km:one*(dailyTrips*2+stayTrips*2),dailyTrips,stayTrips,label:rec?.label||'',status:rec?.status||'unresolved'};
+}
+function renderKm(){
+ if(!$('kmSummaryTable'))return;
+ const years=[...new Set(db.sheets.map(s=>String(s.dataFinal||s.dataInicial||'').slice(0,4)).filter(Boolean))].sort().reverse();
+ let y=$('kmYear').value;
+ if(!y)y=years[0]||String(new Date().getFullYear());
+ $('kmYear').innerHTML=(years.length?years:[y]).map(v=>`<option ${v===y?'selected':''}>${v}</option>`).join('');
+ $('companyAddress').value=db.settings.empresaMorada||'';
+ $('companyLocationStatus').innerHTML=num(db.settings.empresaLat)&&num(db.settings.empresaLon)?`✅ Origem localizada (${num(db.settings.empresaLat).toFixed(5)}, ${num(db.settings.empresaLon).toFixed(5)})`:'⚠️ Origem ainda não localizada. O botão Calcular distâncias tenta localizá-la automaticamente.';
+ const groups=kmRowsForYear(y);
+ let total=0,daily=0,stay=0;
+ let h='<tr><th>Cliente</th><th>Local</th><th>Destino</th><th>Km ida</th><th>Regra</th><th>Total</th><th></th></tr>';
+ for(const g of groups){
+  const t=kmTotalsForGroup(g);total+=t.km;daily+=t.dailyTrips;stay+=t.stayTrips;
+  const rule=t.stayTrips&&t.dailyTrips?`${t.stayTrips} permanência + ${t.dailyTrips} dias ida/volta`:t.stayTrips?`${t.stayTrips} ida+regresso`:`${t.dailyTrips} dias ida+volta`;
+  h+=`<tr><td>${g.client}</td><td>${g.local}</td><td>${t.label||'Ainda não localizado'}</td><td>${t.one?fmt(t.one)+' km':'—'}</td><td>${rule}</td><td><strong>${fmt(t.km)} km</strong></td><td><button onclick="recalcOneKm('${encodeURIComponent(g.client)}','${encodeURIComponent(g.local)}')">Calcular</button> <button onclick="manualKm('${encodeURIComponent(g.client)}','${encodeURIComponent(g.local)}')">Manual</button></td></tr>`;
+ }
+ if(!groups.length)h+=`<tr><td colspan="7">Não encontrei folhas do ano ${y}. As folhas existentes na aplicação: ${db.sheets.length}.</td></tr>`;
+ $('kmSummaryTable').innerHTML=h;
+ $('kmYearTotal').textContent=fmt(total)+' km';$('kmLocationCount').textContent=String(groups.length);$('kmStayTrips').textContent=String(stay);$('kmDailyTrips').textContent=String(daily);
+ $('kmDiagnostic').innerHTML=`Ano: <strong>${y}</strong> · Folhas encontradas: <strong>${db.sheets.filter(s=>String(s.dataFinal||s.dataInicial||'').startsWith(y)).length}</strong> · Locais distintos: <strong>${groups.length}</strong>`;
+}
+window.recalcOneKm=async function(c,l){
+ const client=decodeURIComponent(c),local=decodeURIComponent(l);
+ try{message(`A calcular ${client} · ${local}…`,'ok');await calculateOneKm(client,local,true);renderKm();message('Distância calculada.','ok')}
+ catch(e){message(e.message||'Não foi possível calcular.','err')}
+};
+window.manualKm=function(c,l){
+ const client=decodeURIComponent(c),local=decodeURIComponent(l),old=getTravelLoc(client,local);
+ const v=prompt(`Distância de ida Empresa → ${client} ${local} (km):`,old?.distanceKm||'');
+ if(v===null)return;const km=num(v);if(km<=0)return alert('Valor inválido.');
+ const label=prompt('Designação do destino:',old?.label||`${client} ${local}`);if(label===null)return;
+ saveTravelLoc(client,local,{...(old||{}),distanceKm:km,label,status:'manual'});
+ audit('Distância de cliente corrigida manualmente',`${client} · ${local}: ${fmt(km)} km`);renderKm();
+};
+async function calculateAllKm(){
+ const y=$('kmYear').value||String(new Date().getFullYear()),groups=kmRowsForYear(y);
+ if(!groups.length){renderKm();throw new Error(`Não existem folhas de ${y} para calcular.`)}
+ let ok=0,fail=[];
+ for(const g of groups){
+  try{await calculateOneKm(g.client,g.local,false);ok++}
+  catch(e){fail.push(`${g.client} ${g.local}: ${e.message}`)}
+ }
+ renderKm();
+ if(fail.length)throw new Error(`${ok} local(is) calculado(s); ${fail.length} falharam. Primeiro erro: ${fail[0]}`);
+ return ok;
+}
 
 function renderDashboard(){const m=$('dashMonth').value||currentMonth(),p=salaryMonth(m),e=expenseSummary(m),extra=p.h25+p.h125+p.h1375+p.h150+p.h165,totalHours=p.normal+extra;const allExtra=db.sheets.reduce((a,s)=>a+num(s.h25)+num(s.h125)+num(s.h1375)+num(s.h150)+num(s.h165),0);$('dashNet').textContent=euro(num(p.net)>=300&&num(p.net)<=5000?num(p.net):0);$('dashH100').textContent=fmt(p.normal)+' h';$('dashH25').textContent=fmt(p.h25)+' h';$('dashH125').textContent=fmt(p.h125)+' h';$('dashH1375').textContent=fmt(p.h1375)+' h';$('dashH150').textContent=fmt(p.h150)+' h';$('dashH165').textContent=fmt(p.h165)+' h';$('dashExtra').textContent=fmt(extra)+' h';$('dashTotalHours').textContent=fmt(totalHours)+' h';$('dashExtraAll').textContent=fmt(allExtra)+' h';if($('dashExtraYear'))$('dashExtraYear').textContent=fmt(yearExtraHours(m.slice(0,4)))+' h';const mealCount=mealDays(m);$('dashMeal').textContent=`${euro(mealCount*db.settings.refeicaoDia)} (${mealCount} dias sem folha)`;$('dashTravel').textContent=euro(p.travel);$('dashLodging').textContent=euro(p.lodging);$('dashBalance').textContent=fmt(balance())+' dias';$('dashExpenseBalance').textContent=euro(e.remain);const w=monthStatus(m),closed=isClosed(m);$('monthStatus').className='statusBox '+(w.length?'status-warn':'status-ok');$('monthStatus').innerHTML=`<strong>${closed?'✅ Mês validado':'🟢 Mês aberto'}</strong>${w.length?' · Falta: '+w.join(', '):' · Registos completos'}`;renderMonthly();renderAnnual();renderAnomalies()}
 function renderMonthly(){
@@ -2665,8 +2763,16 @@ if($('municipalHolidayForm'))$('municipalHolidayForm').onsubmit=e=>{
 };
 
 
-if($('saveCompanyAddressBtn'))$('saveCompanyAddressBtn').onclick=async()=>{const addr=$('companyAddress').value.trim();if(!addr)return;createSafetyBackup('Antes de alterar morada de origem');db.settings.empresaMorada=addr;db.settings.empresaLat=null;db.settings.empresaLon=null;localStorage.setItem(KEY,JSON.stringify(db));try{await ensureCompanyCoords(true);audit('Morada de origem alterada',addr);renderKm();message('Morada da empresa localizada e guardada.','ok')}catch(e){renderKm();message(e.message,'err')}};
-if($('updateKmBtn'))$('updateKmBtn').onclick=async()=>{try{message('A atualizar localizações e distâncias…','ok');await refreshKmData();message('Distâncias atualizadas.','ok')}catch(e){message(e.message||'Não foi possível atualizar as distâncias.','err')}};
+if($('saveCompanyAddressBtn'))$('saveCompanyAddressBtn').onclick=()=>{
+ const v=$('companyAddress').value.trim();if(!v)return;
+ createSafetyBackup('Antes de alterar origem dos quilómetros');
+ db.settings.empresaMorada=v;db.settings.empresaLat=null;db.settings.empresaLon=null;
+ localStorage.setItem(KEY,JSON.stringify(db));renderKm();message('Origem guardada. Será localizada quando calculares as distâncias.','ok');
+};
+if($('updateKmBtn'))$('updateKmBtn').onclick=async()=>{
+ try{message('A calcular localizações e distâncias…','ok');const n=await calculateAllKm();message(`${n} localização(ões) atualizada(s).`,'ok')}
+ catch(e){message(e.message||'Não foi possível calcular as distâncias.','err')}
+};
 if($('kmYear'))$('kmYear').onchange=renderKm;
 
 if($('integrityCheckBtn'))$('integrityCheckBtn').onclick=()=>{
